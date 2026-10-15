@@ -18,6 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Godot system font dependency
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libfontconfig1
+
       - name: Setup export templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates

@@ -19,6 +19,10 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+      - name: Install Godot system font dependency
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libfontconfig1
       - name: Set up Web templates
         run: |
           if [ ! -f ~/.local/share/godot/export_templates/4.5.stable/web_nothreads_release.zip ]; then
