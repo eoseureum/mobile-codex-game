@@ -19,8 +19,15 @@ jobs:
     timeout-minutes: 15
     container:
       image: barichello/godot-ci:4.5
+    env:
+      XDG_DATA_HOME: /root/.local/share
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare Godot container dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libfontconfig1
+          test -s "$XDG_DATA_HOME/godot/export_templates/4.5.stable/web_nothreads_release.zip"
       - name: Import resources and validate scripts
         run: godot --headless --path . --editor --quit
       - name: Run factory and save regression tests
