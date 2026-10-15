@@ -18,6 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup export templates
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates
+          cp -r \
+            /root/.local/share/godot/export_templates/4.5.stable \
+            ~/.local/share/godot/export_templates/
+
+          test -f \
+            ~/.local/share/godot/export_templates/4.5.stable/web_nothreads_release.zip
+
       - name: Import resources
         run: |
           godot --headless --path . \
