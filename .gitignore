@@ -1,0 +1,4 @@
+.godot/
+build/
+.superpowers/
+__pycache__/
