@@ -145,3 +145,21 @@ static func route_quote(game,from,to,clear=false) -> Dictionary:
 	var path=[]
 	for id in ids:path.append(id)
 	return quote_path(game,path,false)
+
+static func linked_quote(game,source_id,kind,to) -> Dictionary:
+	if not game.world_mode() or not valid_point(to) or kind not in ["sawmill","warehouse"]:return failure("INVALID")
+	var source=game.state.entities.get(source_id,{})
+	if source.is_empty():return failure("INVALID")
+	if not game.unlocked(kind):return failure("LOCKED")
+	if not game.at(to.x,to.y).is_empty():return failure("OCCUPIED")
+	if not resource_at(game.state.world,to.x,to.y).is_empty():return failure("BLOCKED")
+	var output=game.recipe(source).output
+	if output.is_empty() or (kind=="sawmill" and not output.has("log")):return failure("INVALID")
+	var quote=route_quote(game,{"x":source.x,"y":source.y},to,false)
+	if not quote.ok:return quote
+	# The destination is a facility, so it replaces the last quoted belt.
+	quote.cells.pop_back();quote.cash+=game.data.facilities[kind].cost-game.data.facilities.belt.cost
+	quote.kind=kind;quote.x=int(to.x);quote.y=int(to.y);quote.sourceId=source_id
+	quote.targetDirection=direction(quote.path[-2],quote.path[-1])
+	quote.materials=game.construction_materials(kind).duplicate()
+	return quote

@@ -1,6 +1,7 @@
 extends SceneTree
 const Factory=preload("res://scripts/core/factory.gd")
 const Art=preload("res://scripts/ui/pixel_art.gd")
+const Fixture=preload("res://tests/world_fixture.gd")
 var checks=0
 var failures=0
 func check(value,message):
@@ -10,16 +11,16 @@ func _initialize():
 	check(ResourceLoader.exists("res://scripts/ui/facility_motion.gd"),"facility motion follows actual production progress")
 	if failures:quit(1);return
 	var Motion=load("res://scripts/ui/facility_motion.gd")
-	var g=Factory.new();g.fresh(0,true,42);g.advance(0.5)
+	var g=Factory.new();Fixture.connected(g);g.advance(0.5)
 	var normal=Motion.phase(g,g.state.entities.e1)
 	check(is_equal_approx(normal,0.125),"four second logging advances one eighth of its animation in half a second")
-	g.fresh(0,true,42);g.state.entities.e1.level=5;g.advance(0.5)
+	Fixture.connected(g);g.state.entities.e1.level=5;g.advance(0.5)
 	check(is_equal_approx(Motion.phase(g,g.state.entities.e1),normal*g.speed(g.state.entities.e1)),"production upgrade speeds animation by the same ratio as crafting")
 	var prior=Motion.phase(g,g.state.entities.e1);g.advance(0.125)
 	check(is_equal_approx(Motion.phase(g,g.state.entities.e1)-prior,0.125*g.speed(g.state.entities.e1)/4.0),"animation interpolates smoothly between simulation ticks")
 	g.state.entities.e1.paused=true
 	check(Motion.phase(g,g.state.entities.e1)<0,"paused facility has no running animation")
-	g.fresh(0,true,42)
+	Fixture.connected(g)
 	check(Motion.phase(g,g.state.entities.e2)<0,"sawmill without input stays idle")
 	g.state.entities.e1.outputs.log=g.capacity(g.state.entities.e1)
 	check(Motion.phase(g,g.state.entities.e1)<0,"full output prevents a new animation cycle")
@@ -36,7 +37,7 @@ func _initialize():
 	check(Motion.phase(g,g.state.entities.e4)>=0,"loaded conveyor feeding a facility runs")
 	g.state.entities.e2.paused=true
 	check(Motion.phase(g,g.state.entities.e4)<0,"blocked conveyor stops")
-	g.fresh(0,true,42);g.advance(180)
+	Fixture.connected(g);g.advance(180)
 	g.command({"type":"takeOrder","offerId":g.offers()[0].id});g.advance(0.25)
 	g.state.entities.e3.inventory={};g.state.entities.e3.inputs={};g.state.entities.e3.outputs={}
 	check(Motion.phase(g,g.state.entities.e3)>=0,"shipping depot animates while loading a real order")

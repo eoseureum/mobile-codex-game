@@ -9,6 +9,7 @@ const DIRS = [Vector2i(0,-1), Vector2i(1,0), Vector2i(0,1), Vector2i(-1,0)]
 var data: Dictionary
 var state: Dictionary
 var transfers: Array = []
+var sales: Array = []
 var _indexed_source={}
 var _indexed_size=-1
 var _positions={}
@@ -22,6 +23,7 @@ func fresh(now_ms = -1,open_world=true,seed_value=-1):
 	state = data.initial.duplicate(true)
 	state.createdAtMs = int(Time.get_unix_time_from_system()*1000) if now_ms < 0 else now_ms
 	invalidate_index();clear_effects()
+	transfers.clear();sales.clear()
 	if open_world:WorldRules.setup(self,int(seed_value) if seed_value>=0 else int(Time.get_unix_time_from_system()*1000)%2147483647)
 
 func world_mode() -> bool:return state.has("world")
@@ -29,6 +31,11 @@ func invalidate_index():_indexed_size=-1
 func clear_effects():_effects_cache={}
 func stock(r) -> int:return WorldRules.stock(self,r) if world_mode() else int(state.bag.get(r,0))
 func storage_capacity(e) -> int:return 200*int(e.level)
+func construction_materials(kind) -> Dictionary:
+	if world_mode() and state.factory.get("startMode","")=="empty":
+		if kind=="forest" and state.factory.pioneerForestId.is_empty():return {}
+		if kind=="sawmill" and not recorded("first_sawmill"):return {}
+	return data.facilities[kind].materials
 func sale_price(e,r) -> int:return int(floor(price(r)*(1+0.12*e.get("incomeLevel",0))*effects().operating)) if world_mode() else price(r)
 
 func add(store: Dictionary, resource, amount):
@@ -107,6 +114,7 @@ func create_entity(kind,x,y,extra = {}) -> Dictionary:
 
 func unlocked(kind) -> bool:
 	if not data.facilities.has(kind) or stage_index()<data.facilities[kind].tier: return false
+	if world_mode() and state.factory.get("startMode","")=="empty" and state.factory.pioneerForestId.is_empty():return kind=="forest"
 	if kind=="sawmill": return world_mode() or state.districts.forest.size>=2
 	if kind=="generator": return produced("wire")>=10
 	if is_project(kind):
@@ -352,6 +360,7 @@ func production():
 			for r in e.job.output:
 				add(e.outputs,r,e.job.output[r])
 				add(state.totals.produced,r,e.job.output[r])
+			if world_mode():WorldRules.pioneer_sale(self,e)
 			if not world_mode():
 				var value=e.get("incomeCredit",0)+income_per_batch(e)
 				var cash=floor(value+0.000000001)
@@ -401,13 +410,19 @@ func quotes(r,bonus = -1.0) -> Array:
 
 func offers() -> Array:
 	var result=[]
-	var warehouse=false
-	for e in state.entities.values():
-		if e.kind=="warehouse": warehouse=true
-	if not warehouse: return result
+	var depot=shipping_depot()
+	if depot.is_empty(): return result
 	for r in data.resources:
-		if produced(r)>0 and ((state.entities.e3.get("inventory",{}).get(r,0)>0 if world_mode() else state.bag.get(r,0)>0) or state.totals.sold.get(r,0)>0): result.append_array(quotes(r))
+		if produced(r)>0 and ((depot.get("inventory",{}).get(r,0)>0 if world_mode() else state.bag.get(r,0)>0) or state.totals.sold.get(r,0)>0): result.append_array(quotes(r))
 	return result
+
+func shipping_depot() -> Dictionary:
+	var original=state.entities.get("e3",{})
+	if not state.factory.has("startMode") and original.get("kind","")=="warehouse":return original
+	var first={}
+	for e in state.entities.values():
+		if e.kind=="warehouse" and (first.is_empty() or int(e.id.substr(1))<int(first.id.substr(1))):first=e
+	return first
 
 func start_shipment(id) -> bool:
 	var t=trade()
@@ -530,7 +545,11 @@ func warehouse_step():
 		if r=="plank": event("first_auto_sale")
 	if income>0: sale(income,"market")
 
-func sale(amount,mode): state.recentSales.append({"atS":state.clock.elapsedS,"cash":amount,"mode":mode})
+func sale(amount,mode,entity_id=""):
+	var entry={"atS":state.clock.elapsedS,"cash":amount,"mode":mode}
+	if not entity_id.is_empty():entry.entityId=entity_id;feedback_sale(amount,entity_id)
+	state.recentSales.append(entry)
+func feedback_sale(amount,entity_id):sales.append({"atS":state.clock.elapsedS,"cash":amount,"entityId":entity_id})
 
 func logistics():
 	var all=state.entities.values()
@@ -544,6 +563,7 @@ func logistics():
 	for e in all:
 		index[key(e.x,e.y)]=e
 		if e.kind=="market" and not e.paused:
+			var sold_here=0
 			e.flowCredit=minf(2*speed(e),e.flowCredit+DT*2*speed(e))
 			var budget=int(floor(e.flowCredit+0.000000001))
 			while budget>0:
@@ -553,13 +573,14 @@ func logistics():
 					if e.saleFilters[ids[i]] and e.inputs.get(ids[i],0)>0: selected=i; break
 				if selected<0: break
 				var r=ids[selected]
-				income+=credit(sale_price(e,r))
+				var paid=credit(sale_price(e,r));income+=paid;sold_here+=paid
 				add(e.inputs,r,-1)
 				add(state.totals.sold,r,1)
 				e.flowCredit=maxf(0,e.flowCredit-1)
 				budget-=1
 				e.saleCursor=(selected+1)%ids.size()
 				if r=="plank": event("first_auto_sale")
+			if world_mode() and sold_here>0:feedback_sale(sold_here,e.id)
 		if not e.paused and e.kind not in ["market","launchpad","generator"]: sources.append(e)
 		if not e.has("intakeCursors"): e.intakeCursors={}
 		snapshots[e.id]={"queue":e.queue.duplicate(),"outputs":e.outputs.duplicate(),"inputs":e.inputs.duplicate()}
@@ -640,6 +661,7 @@ func transport_space(target,r,source,snapshots,reserved) -> float:
 func tick():
 	clear_effects()
 	transfers.clear()
+	sales.clear()
 	warehouse_step()
 	logistics()
 	power_step()

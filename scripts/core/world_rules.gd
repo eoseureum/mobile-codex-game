@@ -6,11 +6,23 @@ static func init_entity(e:Dictionary):
 	if e.kind=="warehouse":e.inventory={};e.autoSell=false;e.localSaleCredit=0.0
 static func setup(game,seed_value:int):
 	game.state.world=World.generate(seed_value)
-	for id in ["e1","e2","e3"]:
-		var e=game.state.entities[id];e.x=62+(int(id.substr(1))-1)*2;e.y=64;e.starter=true
-	game.state.entities.e3.inventory={};game.state.entities.e3.autoSell=true;game.state.entities.e3.localSaleCredit=0.0
-	for x in [63,65]:game.create_entity("belt",x,64,{"starter":true})
+	game.state.world.spawn={"x":62,"y":64}
+	game.state.entities={};game.state.nextId=1;game.state.records=[]
+	game.state.cash=game.data.facilities.forest.cost
+	game.state.factory.startMode="empty";game.state.factory.pioneerForestId=""
 	game.invalidate_index()
+static func pioneer_sale(game,e):
+	if e.id!=game.state.factory.get("pioneerForestId","") or e.kind!="forest":return
+	e.pioneerCycles+=1
+	var d=game.DIRS[int(e.direction)];var target=game.at(e.x+d.x,e.y+d.y)
+	var linked=false
+	if not target.is_empty():
+		var snapshots={target.id:{"queue":target.queue,"inputs":target.inputs,"outputs":target.outputs}}
+		linked=game.transport_space(target,"log",e,snapshots,{})>0
+	# A partial line still earns enough to buy its missing shipping equipment.
+	if linked and (game.recorded("first_auto_sale") or int(e.pioneerCycles)%2==0):return
+	game.add(e.outputs,"log",-1);game.add(game.state.totals.sold,"log",1)
+	game.sale(game.credit(game.price("log")),"market",e.id)
 static func stock(game,r) -> int:
 	var n=int(game.state.bag.get(r,0))
 	for e in game.state.entities.values():
@@ -54,8 +66,12 @@ static func command(game,c:Dictionary) -> String:
 	var e=game.state.entities.get(c.get("entityId",""),{})
 	match c.get("type",""):
 		"expand","setMineResource":return "LOCKED"
-		"build":
+		"build","buildLinked":
 			var kind=c.get("kind","")
+			var linked={}
+			if c.type=="buildLinked":
+				linked=World.linked_quote(game,c.get("sourceId",""),kind,c)
+				if not linked.ok:return linked.code
 			if not World.valid_point(c) or not game.data.facilities.has(kind):return "INVALID"
 			if not game.at(c.x,c.y).is_empty():return "OCCUPIED"
 			if not game.unlocked(kind):return "LOCKED"
@@ -68,13 +84,24 @@ static func command(game,c:Dictionary) -> String:
 				for existing in game.state.entities.values():
 					if existing.kind==kind:return "LOCKED"
 			var f=game.data.facilities[kind]
-			if not game.affordable(f.cost,f.materials):return "INSUFFICIENT_CASH" if game.state.cash<f.cost else "INSUFFICIENT_RESOURCE"
-			game.pay(f.cost,f.materials)
+			var materials=game.construction_materials(kind)
+			var total=linked.cash if not linked.is_empty() else f.cost
+			if not game.affordable(total,materials):return "INSUFFICIENT_CASH" if game.state.cash<total else "INSUFFICIENT_RESOURCE"
+			game.pay(total,materials)
 			var extra={"investedCash":f.cost}
+			if kind=="forest" and game.state.factory.get("startMode","")=="empty" and game.state.factory.pioneerForestId.is_empty():
+				extra.starter=true;extra.pioneerCycles=0;game.state.factory.pioneerForestId="e%d"%int(game.state.nextId)
+			if kind=="warehouse" and game.shipping_depot().is_empty():extra.autoSell=true
 			if kind=="mine":extra.mineResourceId=r
 			if game.is_project(kind):extra.project={"materials":{},"remainingS":game.data.projects[kind].seconds,"complete":false}
+			if not linked.is_empty():extra.direction=linked.targetDirection
 			game.create_entity(kind,int(c.x),int(c.y),extra);game.event("first_"+kind)
+			if not linked.is_empty():
+				game.state.entities[c.sourceId].direction=linked.sourceDirection
+				for cell in linked.cells:game.create_entity("belt",cell.x,cell.y,{"direction":cell.direction,"investedCash":game.data.facilities.belt.cost})
+				game.event("first_route")
 		"clearArea","buildRoute":
+			if game.state.factory.get("startMode","")=="empty" and game.state.factory.pioneerForestId.is_empty():return "LOCKED"
 			var quote=World.clear_quote(game,c.get("from"),c.get("to")) if c.type=="clearArea" else World.route_quote(game,c.get("from"),c.get("to"),c.get("clear",false))
 			if not quote.ok:return quote.code
 			if game.state.cash<quote.cash:return "INSUFFICIENT_CASH"
@@ -96,11 +123,11 @@ static func command(game,c:Dictionary) -> String:
 		"cancelOrder":
 			var t=game.trade()
 			if t.active==null and not t.repeat:return "LOCKED"
-			if t.active!=null:game.add(game.state.entities.e3.inventory,t.active.resource,t.active.reserved+t.active.loaded)
+			if t.active!=null:game.add(game.shipping_depot().inventory,t.active.resource,t.active.reserved+t.active.loaded)
 			t.active=null;t.repeat=false
 		"demolish":
 			if e.is_empty():return "INVALID"
-			if e.id in ["e1","e2","e3"] or e.get("starter",false):return "PROTECTED"
+			if e.get("starter",false) or (game.trade().active!=null and e==game.shipping_depot()):return "PROTECTED"
 			var recovery={}
 			for store in [e.inputs,e.outputs,e.get("inventory",{}),e.job.reserved if e.job!=null else {},e.project.materials if e.has("project") and not e.project.complete else {}]:
 				for r in store:game.add(recovery,r,store[r])
@@ -133,7 +160,8 @@ static func project_step(game):
 			p.remainingS=maxf(0,p.remainingS-game.DT)
 			if p.remainingS==0:p.complete=true;game.event("complete_"+e.kind);game.clear_effects()
 static func trade_step(game):
-	var t=game.trade();var depot=game.state.entities.e3
+	var t=game.trade();var depot=game.shipping_depot()
+	if depot.is_empty():return
 	if t.active==null:
 		t.cooldownS=maxf(0,t.cooldownS-game.DT)
 		if t.repeat and t.cooldownS==0:game.start_shipment(t.lastOfferId)
@@ -152,7 +180,7 @@ static func trade_step(game):
 	if a.departureS>0:return
 	var income=game.credit(a.reward);game.add(game.state.totals.sold,a.resource,a.quantity)
 	t.rewardEarned=mini(game.MAX_MONEY,int(t.rewardEarned)+income);t.completed+=1;t.active=null;t.cooldownS=game.effects().cooldown
-	game.event("first_shipment");game.sale(income,"shipment")
+	game.event("first_shipment");game.sale(income,"shipment",depot.id)
 static func warehouse_step(game):
 	var warehouses=[]
 	for e in game.state.entities.values():
@@ -173,9 +201,10 @@ static func warehouse_step(game):
 		if game.transport_space(target,r,e,snapshots,{})<=0:continue
 		game.add(e.inventory,r,-n);game.add(e.outputs,r,n)
 	trade_step(game)
-	var ids=game.data.resources.keys();var income=0
+	var ids=game.data.resources.keys();var total_income=0
 	for e in warehouses:
 		if not e.autoSell:continue
+		var income=0
 		e.localSaleCredit=minf(2,e.localSaleCredit+game.DT*2*game.speed(e))
 		while e.localSaleCredit>=1:
 			var selected=-1
@@ -186,4 +215,5 @@ static func warehouse_step(game):
 			var r=ids[selected];income+=game.credit(game.sale_price(e,r));game.add(e.inventory,r,-1);game.add(game.state.totals.sold,r,1)
 			e.localSaleCredit-=1;e.saleCursor=(selected+1)%ids.size()
 			if r=="plank":game.event("first_auto_sale")
-	if income>0:game.sale(income,"market")
+		if income>0:game.feedback_sale(income,e.id);total_income+=income
+	if total_income>0:game.sale(total_income,"market")

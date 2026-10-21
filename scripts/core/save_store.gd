@@ -28,7 +28,7 @@ func validate(snapshot) -> String:
 		if not s.get(key) is Dictionary: return "저장된 도시 정보가 부족해요."
 	for key in ["records","recentSales","corridors"]:
 		if not s.get(key) is Array: return "저장된 도시 기록이 올바르지 않아요."
-	if not whole(s.get("cash")) or not whole(s.get("createdAtMs")) or not whole(s.get("nextId"),2) or not resources(s.bag): return "저장된 금액이나 재고가 올바르지 않아요."
+	if not whole(s.get("cash")) or not whole(s.get("createdAtMs")) or not whole(s.get("nextId"),1) or not resources(s.bag): return "저장된 금액이나 재고가 올바르지 않아요."
 	if not resources(s.totals.get("produced")) or not resources(s.totals.get("sold")) or not whole(s.totals.get("earned")) or not whole(s.totals.get("operatingEarned",0),0,s.totals.earned): return "생산 기록이 올바르지 않아요."
 	var is_world=s.has("world")
 	if is_world and not World.valid_model(s.world):return "월드 지도 정보가 올바르지 않아요."
@@ -93,13 +93,21 @@ func validate(snapshot) -> String:
 			for r in p.materials:
 				if p.materials[r]>game.data.projects[e.kind].materials.get(r,0): return "공사 재료가 너무 많아요."
 			if p.complete and (p.remainingS!=0 or not game.has_stock(p.materials,game.data.projects[e.kind].materials)): return "미완성 공사예요."
-	for id in ["e1","e2","e3"]:
-		if not s.entities.has(id): return "시작 생산라인이 없어요."
-	if s.entities.e1.kind!="forest" or s.entities.e2.kind!="sawmill" or s.entities.e3.kind!="warehouse": return "시작 생산라인이 올바르지 않아요."
+	if s.factory.has("startMode"):
+		if not is_world or s.factory.startMode!="empty" or not s.factory.get("pioneerForestId") is String:return "시작 시설 정보가 올바르지 않아요."
+		var pioneer=s.entities.get(s.factory.pioneerForestId,{})
+		if s.factory.pioneerForestId.is_empty():
+			if not s.entities.is_empty() or s.nextId!=1 or not s.records.is_empty() or not s.totals.produced.is_empty():return "시작 시설 정보가 올바르지 않아요."
+		elif pioneer.get("kind","")!="forest" or pioneer.get("starter")!=true or not whole(pioneer.get("pioneerCycles")):return "시작 시설 정보가 올바르지 않아요."
+	else:
+		for id in ["e1","e2","e3"]:
+			if not s.entities.has(id): return "시작 생산라인이 없어요."
+		if s.entities.e1.kind!="forest" or s.entities.e2.kind!="sawmill" or s.entities.e3.kind!="warehouse": return "시작 생산라인이 올바르지 않아요."
 	for event in s.records:
 		if not event is Dictionary or not event.get("type") is String or not (event.get("atS") is int or event.get("atS") is float) or event.atS<0 or event.atS>s.clock.elapsedS: return "도시 기록이 올바르지 않아요."
 	for sale in s.recentSales:
 		if not sale is Dictionary or not whole(sale.get("cash")) or sale.get("mode","") not in ["operating","market","shipment"] or not (sale.get("atS") is int or sale.get("atS") is float): return "수입 기록이 올바르지 않아요."
+		if sale.has("entityId") and (not sale.entityId is String or ids.search(sale.entityId)==null):return "수입 기록이 올바르지 않아요."
 	if not resources(s.rocket.get("delivered")) or not whole(s.rocket.get("launched"),0,1): return "로켓 정보가 올바르지 않아요."
 	for r in s.rocket.delivered:
 		if s.rocket.delivered[r]>game.data.rocket.get(r,0): return "로켓 납품이 올바르지 않아요."
@@ -110,6 +118,7 @@ func validate(snapshot) -> String:
 		if t.cooldownS<0 or t.cooldownS>20: return "주문 대기 시간이 올바르지 않아요."
 		if not t.has("active") or not t.has("lastOfferId") or (t.lastOfferId!=null and not t.lastOfferId is String): return "주문 기록이 올바르지 않아요."
 		if t.get("active")!=null:
+			if game.shipping_depot().is_empty():return "출하 주문이 올바르지 않아요."
 			var a=t.active
 			if not a is Dictionary or not game.data.resources.has(a.get("resource","")) or a.get("bonus",0) not in [1.0,1.1]: return "출하 주문이 올바르지 않아요."
 			var quote={}
