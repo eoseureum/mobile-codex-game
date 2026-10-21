@@ -1,6 +1,7 @@
 class_name RustSaveStore
 extends RefCounted
 const Factory=preload("res://scripts/core/factory.gd")
+const World=preload("res://scripts/core/world_map.gd")
 const PATH="user://rust-city-godot-v1.json"
 var last_error=""
 
@@ -20,26 +21,28 @@ func same_resources(a:Dictionary,b:Dictionary) -> bool:
 	return true
 
 func validate(snapshot) -> String:
-	if not snapshot is Dictionary or snapshot.get("version")!=1 or not whole(snapshot.get("savedAtMs")): return "저장 형식을 확인해 주세요."
+	if not snapshot is Dictionary or not whole(snapshot.get("version"),1,1) or not whole(snapshot.get("savedAtMs")): return "저장 형식을 확인해 주세요."
 	var s=snapshot.get("state")
-	if not s is Dictionary or s.get("version")!=1 or not s.get("factory") is Dictionary or s.factory.get("currencyVersion")!=2 or s.has("harvest"): return "현재 공장 도시의 백업만 불러올 수 있어요."
+	if not s is Dictionary or not whole(s.get("version"),1,1) or not s.get("factory") is Dictionary or not whole(s.factory.get("currencyVersion"),2,2) or s.has("harvest"): return "현재 공장 도시의 백업만 불러올 수 있어요."
 	for key in ["entities","districts","unlocks","totals","clock","power","rocket","bag"]:
 		if not s.get(key) is Dictionary: return "저장된 도시 정보가 부족해요."
 	for key in ["records","recentSales","corridors"]:
 		if not s.get(key) is Array: return "저장된 도시 기록이 올바르지 않아요."
 	if not whole(s.get("cash")) or not whole(s.get("createdAtMs")) or not whole(s.get("nextId"),2) or not resources(s.bag): return "저장된 금액이나 재고가 올바르지 않아요."
 	if not resources(s.totals.get("produced")) or not resources(s.totals.get("sold")) or not whole(s.totals.get("earned")) or not whole(s.totals.get("operatingEarned",0),0,s.totals.earned): return "생산 기록이 올바르지 않아요."
+	var is_world=s.has("world")
+	if is_world and not World.valid_model(s.world):return "월드 지도 정보가 올바르지 않아요."
 	var game=Factory.new()
 	game.state=s
 	var tier=game.data.stages.find(s.get("stage",""))
-	if tier<0 or s.unlocks.get("offline")!=(tier>=4): return "산업 단계가 올바르지 않아요."
+	if tier<0 or not s.unlocks.get("offline") is bool or s.unlocks.get("offline")!=(tier>=4): return "산업 단계가 올바르지 않아요."
 	for id in game.data.districts:
-		if not s.districts.get(id) is Dictionary or int(s.districts[id].get("size",-1)) not in ([1,2,3,6] if id=="forest" else [0,3,6]): return "토지 정보가 올바르지 않아요."
-	if s.entities.size()>216 or s.records.size()>100 or s.recentSales.size()>20000 or s.corridors.size()>216: return "저장 데이터가 너무 커요."
+		if not s.districts.get(id) is Dictionary or not whole(s.districts[id].get("size"),0,6) or int(s.districts[id].size) not in ([1,2,3,6] if id=="forest" else [0,3,6]): return "토지 정보가 올바르지 않아요."
+	if s.entities.size()>(World.MAX_ENTITIES if is_world else 216) or s.records.size()>100 or s.recentSales.size()>20000 or s.corridors.size()>216: return "저장 데이터가 너무 커요."
 	if not (s.clock.get("elapsedS") is int or s.clock.get("elapsedS") is float): return "도시 시각이 올바르지 않아요."
 	if not whole(s.clock.get("tickIndex")) or not whole(s.clock.get("elapsedS",-1)*4) or abs(s.clock.elapsedS-s.clock.tickIndex*0.25)>0.000001: return "도시 시각이 올바르지 않아요."
 	if not s.clock.get("carryS") is float and not s.clock.get("carryS") is int: return "도시 시각이 올바르지 않아요."
-	if s.clock.carryS<0 or s.clock.carryS>=0.25: return "도시 시각이 올바르지 않아요."
+	if not is_finite(float(s.clock.carryS)) or s.clock.carryS<0 or s.clock.carryS>=0.25: return "도시 시각이 올바르지 않아요."
 	if not s.factory.get("reserves") is Dictionary or not s.factory.get("dispatchCursors") is Dictionary or not whole(s.factory.get("saleCursor"),0,game.data.resources.size()-1): return "창고 정책이 올바르지 않아요."
 	if not (s.factory.get("saleCredit") is float or s.factory.get("saleCredit") is int) or s.factory.saleCredit<0 or s.factory.saleCredit>2: return "판매 속도가 올바르지 않아요."
 	for r in game.data.resources:
@@ -52,8 +55,15 @@ func validate(snapshot) -> String:
 		if not e is Dictionary or ids.search(id)==null or e.get("id")!=id or not game.data.facilities.has(e.get("kind","")): return "시설 정보가 올바르지 않아요."
 		for field in ["x","y","level","direction","investedCash","flowCredit","splitCursor","burnRemainingS"]:
 			if not (e.get(field) is int or e.get(field) is float) or not is_finite(float(e[field])) or e[field]<0: return "시설 수치가 올바르지 않아요."
-		if not whole(e.x,0,17) or not whole(e.y,0,11) or not whole(e.level,1,game.data.facilities[e.kind].maxLevel) or not whole(e.direction,0,3) or not whole(e.investedCash) or game.data.facilities[e.kind].tier>tier or not game.owned(e.x,e.y): return "시설 위치나 단계가 올바르지 않아요."
+		if not whole(e.x,0,127 if is_world else 17) or not whole(e.y,0,127 if is_world else 11) or not whole(e.level,1,game.data.facilities[e.kind].maxLevel) or not whole(e.direction,0,3) or not whole(e.investedCash) or game.data.facilities[e.kind].tier>tier or not game.owned(e.x,e.y): return "시설 위치나 단계가 올바르지 않아요."
 		if not e.get("paused") is bool or e.get("factory")!=true or e.get("automatic")!=true: return "자동 공장 정보가 올바르지 않아요."
+		if is_world:
+			var source=World.resource_at(s.world,e.x,e.y)
+			if (e.kind=="forest" and source!="log") or (e.kind=="mine" and source!=e.get("mineResourceId")) or (e.kind not in ["forest","mine"] and not source.is_empty()):return "시설과 자원 위치가 맞지 않아요."
+			if not e.get("starter",false) is bool:return "시작 시설 정보가 올바르지 않아요."
+			if e.kind=="warehouse":
+				if not resources(e.get("inventory")) or not e.get("autoSell") is bool:return "개별 창고 재고가 올바르지 않아요."
+				if not (e.get("localSaleCredit") is int or e.get("localSaleCredit") is float) or not is_finite(float(e.localSaleCredit)) or e.localSaleCredit<0 or e.localSaleCredit>2:return "창고 판매 정보가 올바르지 않아요."
 		var point=game.key(e.x,e.y)
 		if positions.has(point) or int(id.substr(1))>=s.nextId: return "시설이 겹치거나 식별자가 올바르지 않아요."
 		positions[point]=true

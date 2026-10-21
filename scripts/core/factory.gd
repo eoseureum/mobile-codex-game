@@ -1,20 +1,35 @@
 class_name RustFactory
 extends RefCounted
 
+const World=preload("res://scripts/core/world_map.gd")
+const WorldRules=preload("res://scripts/core/world_rules.gd")
 const DT = 0.25
 const MAX_MONEY = 9007199254740991
 const DIRS = [Vector2i(0,-1), Vector2i(1,0), Vector2i(0,1), Vector2i(-1,0)]
 var data: Dictionary
 var state: Dictionary
 var transfers: Array = []
+var _indexed_source={}
+var _indexed_size=-1
+var _positions={}
+var _effects_cache={}
 
 func _init():
 	data = JSON.parse_string(FileAccess.get_file_as_string("res://data/catalog.json"))
 	fresh()
 
-func fresh(now_ms = -1):
+func fresh(now_ms = -1,open_world=true,seed_value=-1):
 	state = data.initial.duplicate(true)
 	state.createdAtMs = int(Time.get_unix_time_from_system()*1000) if now_ms < 0 else now_ms
+	invalidate_index();clear_effects()
+	if open_world:WorldRules.setup(self,int(seed_value) if seed_value>=0 else int(Time.get_unix_time_from_system()*1000)%2147483647)
+
+func world_mode() -> bool:return state.has("world")
+func invalidate_index():_indexed_size=-1
+func clear_effects():_effects_cache={}
+func stock(r) -> int:return WorldRules.stock(self,r) if world_mode() else int(state.bag.get(r,0))
+func storage_capacity(e) -> int:return 200*int(e.level)
+func sale_price(e,r) -> int:return int(floor(price(r)*(1+0.12*e.get("incomeLevel",0))*effects().operating)) if world_mode() else price(r)
 
 func add(store: Dictionary, resource, amount):
 	store[resource] = store.get(resource,0) + amount
@@ -63,6 +78,7 @@ func district_at(x,y) -> String:
 	return ""
 
 func owned(x,y) -> bool:
+	if world_mode():return x>=0 and y>=0 and x<World.SIZE and y<World.SIZE
 	var id = district_at(x,y)
 	if id.is_empty(): return false
 	var d = data.districts[id]
@@ -70,6 +86,11 @@ func owned(x,y) -> bool:
 	return (x<d.x+n and y<d.y+n) or key(x,y) in state.corridors
 
 func at(x,y) -> Dictionary:
+	if world_mode():
+		if _indexed_size!=state.entities.size() or not is_same(_indexed_source,state.entities):
+			_positions={};_indexed_source=state.entities;_indexed_size=state.entities.size()
+			for entity in state.entities.values():_positions[key(entity.x,entity.y)]=entity
+		return _positions.get(key(x,y),{})
 	for e in state.entities.values():
 		if e.x==x and e.y==y: return e
 	return {}
@@ -78,6 +99,7 @@ func create_entity(kind,x,y,extra = {}) -> Dictionary:
 	var e = data.initial.entities.e1.duplicate(true)
 	e.merge({"id":"e%d" % int(state.nextId),"kind":kind,"x":x,"y":y,"automatic":true},true)
 	if kind=="warehouse": e.dispatchResource=null
+	if world_mode():WorldRules.init_entity(e)
 	e.merge(extra,true)
 	state.nextId+=1
 	state.entities[e.id]=e
@@ -85,7 +107,7 @@ func create_entity(kind,x,y,extra = {}) -> Dictionary:
 
 func unlocked(kind) -> bool:
 	if not data.facilities.has(kind) or stage_index()<data.facilities[kind].tier: return false
-	if kind=="sawmill": return state.districts.forest.size>=2
+	if kind=="sawmill": return world_mode() or state.districts.forest.size>=2
 	if kind=="generator": return produced("wire")>=10
 	if is_project(kind):
 		if kind=="cabin": return produced("plank")>=20
@@ -93,7 +115,7 @@ func unlocked(kind) -> bool:
 	return true
 
 func known_resource(r) -> bool:
-	if r=="log" or state.bag.get(r,0)>0 or produced(r)>0 or state.totals.sold.get(r,0)>0: return true
+	if r=="log" or stock(r)>0 or produced(r)>0 or state.totals.sold.get(r,0)>0: return true
 	if r in ["stone","coal","copper"] and unlocked("mine"): return true
 	if r=="iron" and stage_index()>=3: return true
 	for kind in data.facilities:
@@ -114,10 +136,14 @@ func expansion(id) -> Dictionary:
 	var d=data.districts[id]
 	return {"cash":(500 if n==1 else 2500 if n==2 else 15000) if id=="forest" else d.cost if n==0 else d.expand,"materials":d.materials if n==0 else {}}
 
-func affordable(cash,mats = {}) -> bool: return state.cash>=cash and has_stock(state.bag,mats)
+func affordable(cash,mats = {}) -> bool:
+	if state.cash<cash:return false
+	for r in mats:
+		if stock(r)<mats[r]:return false
+	return true
 func pay(cash,mats = {}):
 	state.cash-=cash
-	remove(state.bag,mats)
+	WorldRules.remove_materials(self,mats) if world_mode() else remove(state.bag,mats)
 
 func connect_district(id):
 	var d=data.districts[id]
@@ -141,6 +167,12 @@ func connect_district(id):
 
 func command(c: Dictionary) -> String:
 	var type=c.get("type","")
+	if type=="migrateWorld":return WorldRules.migrate(self,c.get("seed",int(state.createdAtMs)%2147483647))
+	if world_mode():
+		var result=WorldRules.command(self,c)
+		if result!="PASS":
+			if result=="OK":clear_effects();progression()
+			return result
 	var e=state.entities.get(c.get("entityId",""),{})
 	match type:
 		"build":
@@ -263,10 +295,13 @@ func command(c: Dictionary) -> String:
 			state.rocket.launched=1
 			event("first_launch")
 		_: return "INVALID"
+	clear_effects()
 	progression()
+	if world_mode():state.world.revision+=1
 	return "OK"
 
 func progression():
+	if world_mode():WorldRules.progression(self);return
 	var i=stage_index()
 	var next=i
 	if state.districts.mines.size>0: next=maxi(next,1)
@@ -281,15 +316,17 @@ func progression():
 	state.unlocks.offline=next>=4
 
 func effects() -> Dictionary:
+	if world_mode() and not _effects_cache.is_empty():return _effects_cache
 	var result={"operating":1.0,"shipment":1.0,"loading":1.5,"cooldown":20.0}
 	for e in state.entities.values():
 		if not e.paused and is_project(e.kind) and e.project.complete:
 			if e.kind=="cabin": result.operating=1.25
 			if e.kind=="cityWorkshop": result.shipment=1.1
 			if e.kind=="dispatchOffice": result.loading=1.8; result.cooldown=16.0
+	if world_mode():_effects_cache=result
 	return result
 
-func income_facility(e) -> bool: return data.facilities[e.kind].cycle>0 and not data.facilities[e.kind].output.is_empty()
+func income_facility(e) -> bool: return (e.kind=="market" or (e.kind=="warehouse" and e.autoSell)) if world_mode() else data.facilities[e.kind].cycle>0 and not data.facilities[e.kind].output.is_empty()
 func income_per_batch(e) -> float:
 	var total=0.0
 	var output=recipe(e).output
@@ -315,10 +352,11 @@ func production():
 			for r in e.job.output:
 				add(e.outputs,r,e.job.output[r])
 				add(state.totals.produced,r,e.job.output[r])
-			var value=e.get("incomeCredit",0)+income_per_batch(e)
-			var cash=floor(value+0.000000001)
-			e.incomeCredit=maxf(0,value-cash)
-			income+=credit(cash,true)
+			if not world_mode():
+				var value=e.get("incomeCredit",0)+income_per_batch(e)
+				var cash=floor(value+0.000000001)
+				e.incomeCredit=maxf(0,value-cash)
+				income+=credit(cash,true)
 			e.job=null
 			if budget<0.00000001: break
 	if income>0: sale(income,"operating")
@@ -368,7 +406,7 @@ func offers() -> Array:
 		if e.kind=="warehouse": warehouse=true
 	if not warehouse: return result
 	for r in data.resources:
-		if produced(r)>0 and (state.bag.get(r,0)>0 or state.totals.sold.get(r,0)>0): result.append_array(quotes(r))
+		if produced(r)>0 and ((state.entities.e3.get("inventory",{}).get(r,0)>0 if world_mode() else state.bag.get(r,0)>0) or state.totals.sold.get(r,0)>0): result.append_array(quotes(r))
 	return result
 
 func start_shipment(id) -> bool:
@@ -427,6 +465,7 @@ func project_step(available):
 			if p.remainingS==0: p.complete=true; event("complete_"+e.kind)
 
 func warehouse_step():
+	if world_mode():WorldRules.warehouse_step(self);return
 	var warehouses=[]
 	for e in state.entities.values():
 		if e.kind=="warehouse" and not e.paused: warehouses.append(e)
@@ -514,7 +553,7 @@ func logistics():
 					if e.saleFilters[ids[i]] and e.inputs.get(ids[i],0)>0: selected=i; break
 				if selected<0: break
 				var r=ids[selected]
-				income+=credit(price(r))
+				income+=credit(sale_price(e,r))
 				add(e.inputs,r,-1)
 				add(state.totals.sold,r,1)
 				e.flowCredit=maxf(0,e.flowCredit-1)
@@ -589,13 +628,17 @@ func transport_space(target,r,source,snapshots,reserved) -> float:
 	var backwards=source.x==target.x+dir.x and source.y==target.y+dir.y
 	if target.kind=="launchpad": return maxf(0,data.rocket.get(r,0)-state.rocket.delivered.get(r,0))
 	if transport(target): return 0 if backwards else maxf(0,(4 if target.level==1 else 8)-own.queue.size()-used)
-	if target.kind=="warehouse": return 0 if backwards else maxf(0,capacity(target)-own.inputs.get(r,0)-used)
+	if target.kind=="warehouse":
+		if world_mode():return 0 if backwards and target.get("dispatchResource")!=null else maxf(0,minf(capacity(target)-own.inputs.get(r,0)-used,storage_capacity(target)-target.inventory.get(r,0)-own.inputs.get(r,0)-used))
+		return 0 if backwards else maxf(0,capacity(target)-own.inputs.get(r,0)-used)
+	if world_mode() and is_project(target.kind):return maxf(0,minf(capacity(target)-own.inputs.get(r,0)-used,data.projects[target.kind].materials.get(r,0)-target.project.materials.get(r,0)-own.inputs.get(r,0)-used))
 	if target.kind=="market": return maxf(0,capacity(target)-own.inputs.get(r,0)-used) if target.saleFilters[r] else 0
 	var f=data.facilities[target.kind]
 	if not f.input.has(r) or (not f.output.is_empty() and backwards): return 0
 	return maxf(0,capacity(target)-own.inputs.get(r,0)-used)
 
 func tick():
+	clear_effects()
 	transfers.clear()
 	warehouse_step()
 	logistics()
