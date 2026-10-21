@@ -2,10 +2,15 @@ extends Control
 const Factory=preload("res://scripts/core/factory.gd")
 const SaveStore=preload("res://scripts/core/save_store.gd")
 const CityMap=preload("res://scripts/ui/city_map.gd")
+const World=preload("res://scripts/core/world_map.gd")
+const WorldTools=preload("res://scripts/ui/world_tools.gd")
+const Overview=preload("res://scripts/ui/world_overview.gd")
 const Art=preload("res://scripts/ui/pixel_art.gd")
 var game=Factory.new()
 var store=SaveStore.new()
 var map
+var world_tools
+var overview
 var header: Control
 var wallet: Panel
 var cash_label: Label
@@ -47,6 +52,8 @@ func _ready():
 	skin.default_font=load("res://assets/fonts/RustCity.otf")
 	theme=skin
 	map=CityMap.new();map.game=game;add_child(map);map.tile_pressed.connect(_tile)
+	world_tools=WorldTools.new(self)
+	overview=Overview.new();overview.game=game;overview.city=map;add_child(overview);overview.point_selected.connect(func(p):map.focus_point(p))
 	header=Control.new();header.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(header)
 	wallet=Panel.new();wallet.mouse_filter=Control.MOUSE_FILTER_IGNORE;header.add_child(wallet)
 	cash_label=Label.new();cash_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;wallet.add_child(cash_label)
@@ -70,17 +77,22 @@ func _ready():
 	toast_label=Label.new();toast_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;toast_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;add_child(toast_label)
 	dialog=ConfirmationDialog.new();dialog.title="Rust City";add_child(dialog);dialog.confirmed.connect(func():if pending_action.is_valid():pending_action.call())
 	resized.connect(_resize_layout)
-	_layout();map.focus_district();_rebuild()
+	_layout();_focus_city();_rebuild()
 	if not auto_checks:
 		var saved=store.load_city()
 		if not saved.is_empty():
 			game.state=saved.state
 			await _catch_up(maxf(0,Time.get_unix_time_from_system()-saved.savedAtMs/1000.0))
 		elif not store.last_error.is_empty():allow_save=false;message(store.last_error)
-		map.focus_district();_rebuild();_save()
+		_focus_city();_rebuild();_layout();_save()
 	else:
 		await get_tree().process_frame
 		await _ui_test()
+
+func _focus_city():
+	var e=game.state.entities.get(selected,game.state.entities.e1)
+	selected_tile=Vector2i(int(e.x),int(e.y));map.selection=selected_tile
+	game.invalidate_index();game.clear_effects();world_tools.reset();map.focus_district()
 
 func _resize_layout():
 	_layout();_rebuild()
@@ -97,7 +109,7 @@ func _box(color:Color,radius=10) -> StyleBoxFlat:
 	box.shadow_color=Color("344a3b32");box.shadow_size=int(3*scale_ui);box.shadow_offset=Vector2(0,4)*scale_ui
 	return box
 func _button(parent,text,action:Callable) -> Button:
-	var b=Button.new();b.text=text;b.custom_minimum_size=Vector2(48,48)*scale_ui;b.pressed.connect(action);parent.add_child(b);return b
+	var b=Button.new();b.text=text;b.custom_minimum_size=Vector2(48,48)*scale_ui;b.pressed.connect(func():action.call_deferred());parent.add_child(b);return b
 func _icon_button(parent,icon,action:Callable) -> Button:
 	var b=_button(parent,"",action);b.set_meta("icon",icon)
 	var picture=TextureRect.new();picture.texture=Art.texture("icon_"+icon);picture.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
@@ -134,10 +146,13 @@ func _spacer(row):
 	var spacer=Control.new();spacer.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(spacer)
 func _action(text,c:Dictionary,disabled=false):
 	var row=_row();_spacer(row);var b=_button(row,text,func():_command(c));b.disabled=disabled;return b
+func _error(code) -> String:
+	return {"LOCKED":"아직 잠겨 있어요.","INSUFFICIENT_CASH":"돈이 부족해요.","INSUFFICIENT_RESOURCE":"도시 자재가 부족해요.","OCCUPIED":"이미 시설이 있어요.","PROTECTED":"시작 생산라인은 보존해요.","BLOCKED":"나무나 광맥이 길을 막고 있어요.","RESOURCE_REQUIRED":"시설에 맞는 숲이나 광맥을 선택해 주세요.","TOO_LARGE":"작업 범위를 256칸 이내로 줄여 주세요.","EMPTY":"정리하거나 연결할 대상이 없어요.","WRONG_PORT":"도착 시설의 출구 쪽이에요. 방향을 바꿔 주세요."}.get(code,"위치와 연결을 다시 확인해 주세요.")
 func _command(c):
 	if busy:return
 	var result=game.command(c)
-	if result!="OK":message({"LOCKED":"아직 잠겨 있어요.","INSUFFICIENT_CASH":"돈이 부족해요.","INSUFFICIENT_RESOURCE":"창고 재료가 부족해요.","OCCUPIED":"이미 시설이 있어요.","PROTECTED":"시작 생산라인은 보존해요."}.get(result,"이 동작은 사용할 수 없어요."));return
+	if result!="OK":message(_error(result));return
+	if c.get("type")=="build":selected=game.at(c.x,c.y).get("id","")
 	_save();_rebuild()
 func message(text):
 	toast_label.text=text;toast_until=Time.get_ticks_msec()+3500;_layout()
@@ -163,6 +178,7 @@ func _layout():
 		var focus=_box(Color.TRANSPARENT);focus.border_color=Color("b58d4f");focus.shadow_size=0;theme.set_stylebox("focus",type,focus)
 	theme.set_color("font_color","Label",Color("414b38"))
 	map.position=Vector2.ZERO;map.size=size;map.tile_size=96*u
+	overview.visible=game.world_mode();overview.position=Vector2(16,114)*u;overview.size=Vector2(94,94)*u
 	header.position=Vector2.ZERO;header.size=size
 	wallet.position=Vector2(16,16)*u;wallet.size=Vector2(214,86)*u;wallet.add_theme_stylebox_override("panel",_box(Color("fff2cf"),12))
 	cash_label.position=Vector2(14,24)*u;cash_label.add_theme_font_size_override("font_size",int(28*u))
@@ -206,30 +222,34 @@ func _layout_title():
 	var e=game.state.entities.get(selected,{})
 	handle.text=(game.data.facilities[e.kind].name if not e.is_empty() else "빈 건설 부지") if tab=="map" else labels.get(tab,"")
 	if tab=="build" and not build_kind.is_empty():handle.text=game.data.facilities[build_kind].name+" 배치"
+	if world_tools!=null and not world_tools.mode.is_empty():handle.text=world_tools.title()
 	handle.text+="   ↑" if sheet_fraction==0 else "   ↓"
 	for b in nav.get_children():
 		var active=b.get_meta("tab")==tab
 		b.add_theme_stylebox_override("normal",_box(Color("e2b86b") if active else Color("fff2cf")))
 func show_tab(value):
-	tab=value;sheet_fraction=0 if tab=="map" else 0.48;_rebuild();_layout()
+	world_tools.reset();build_kind="";tab=value;sheet_fraction=0 if tab=="map" else 0.48;_rebuild();_layout()
+func _build_at(kind,tile):
+	confirm(game.data.facilities[kind].name+" 건설\n"+_cost(game.data.facilities[kind]),func():
+		var result=game.command({"type":"build","kind":kind,"x":tile.x,"y":tile.y})
+		if result=="OK":
+			selected=game.at(tile.x,tile.y).id;tab="map";build_kind="";sheet_fraction=0.56;_save();_rebuild();_layout()
+		else:message(_error(result)))
 func _tile(tile):
-	if tile.x<0 or tile.y<0 or tile.x>=18 or tile.y>=12:return
+	if game.world_mode() and not game.owned(tile.x,tile.y):return
+	if not game.world_mode() and (tile.x<0 or tile.y<0 or tile.x>=18 or tile.y>=12):return
 	selected_tile=tile;map.selection=tile
+	if game.world_mode() and world_tools.handle_tile(tile):return
 	var e=game.at(tile.x,tile.y)
-	if tab=="build" and not build_kind.is_empty() and e.is_empty() and game.owned(tile.x,tile.y):
-		var kind=build_kind
-		confirm(game.data.facilities[kind].name+" 건설\n"+_cost(game.data.facilities[kind]),func():
-			var result=game.command({"type":"build","kind":kind,"x":tile.x,"y":tile.y})
-			if result=="OK":selected=game.at(tile.x,tile.y).id;tab="map";_save();_rebuild();_layout()
-			else:message("건설 조건이나 비용을 확인해 주세요."))
-		return
+	if tab=="build" and not build_kind.is_empty() and e.is_empty() and game.owned(tile.x,tile.y):_build_at(build_kind,tile);return
 	selected=e.get("id","");tab="map";sheet_fraction=0.56;_rebuild();_layout()
 
 func _signature() -> String:
 	var value=game.state.stage+str(game.recorded("first_auto_sale"))
 	for kind in game.data.facilities:value+=str(game.unlocked(kind))
 	for r in game.data.resources:value+=str(game.known_resource(r))
-	for id in game.data.districts:value+=str(game.district_known(id))
+	if not game.world_mode():
+		for id in game.data.districts:value+=str(game.district_known(id))
 	value+=str(game.produced("copper")>=20)
 	if tab=="trade":value+=str(game.trade().active!=null)+str(game.trade().completed)+str(game.trade().cooldownS<=0)
 	return value
@@ -247,11 +267,13 @@ func _rebuild():
 		"industry":_industry()
 		"records":_records()
 		"settings":_settings()
+		"work":world_tools.panel()
 	scroll.set_deferred("scroll_vertical",previous)
 	_layout_title();_refresh()
 func _facility():
 	var e=game.state.entities.get(selected,{})
 	if e.is_empty():
+		if game.world_mode():world_tools.tile_panel();return
 		var id=game.district_at(selected_tile.x,selected_tile.y)
 		if not id.is_empty():_district(id)
 		_button(body,"시설 건설",func():show_tab("build"))
@@ -273,9 +295,12 @@ func _facility():
 		for r in resources:
 			var resource=r
 			var row_stock=_row();_label(row_stock,_resource_name(resource));_spacer(row_stock)
-			_bind_label(row_stock,func():return str(int(e.inputs.get(resource,0)+e.outputs.get(resource,0)+e.queue.count(resource))))
-	if e.kind=="mine":_choice("채굴할 광물",["stone","coal","copper","iron"],e.mineResourceId,func(r):_command({"type":"setMineResource","entityId":e.id,"resource":r}))
+			_bind_label(row_stock,func():return str(int(e.inputs.get(resource,0)+e.outputs.get(resource,0)+e.queue.count(resource)+e.get("inventory",{}).get(resource,0))))
+	if e.kind=="mine" and not game.world_mode():_choice("채굴할 광물",["stone","coal","copper","iron"],e.mineResourceId,func(r):_command({"type":"setMineResource","entityId":e.id,"resource":r}))
 	if e.kind=="warehouse":
+		if game.world_mode():
+			var selling=CheckButton.new();selling.text="자동 판매";selling.button_pressed=e.autoSell;selling.custom_minimum_size.y=48*scale_ui;body.add_child(selling)
+			selling.toggled.connect(func(value):_command({"type":"setWarehouseSales","entityId":e.id,"enabled":value}))
 		_choice("컨베이어로 출고",[""]+game.data.resources.keys(),e.get("dispatchResource",""),func(r):_command({"type":"configureWarehouse","entityId":e.id,"resource":null if r=="" else r}))
 		_button(body,"도시 재고 / 주문",func():show_tab("inventory"))
 	if e.kind=="market":
@@ -285,11 +310,11 @@ func _facility():
 			check.toggled.connect(func(value):_command({"type":"setFilters","entityId":e.id,"filters":{resource:value}}))
 	if game.is_project(e.kind):
 		var definition=game.data.projects[e.kind]
-		_label(body,definition.effect)
+		_label(body,_project_effect(e.kind))
 		for r in definition.materials:
 			var resource=r
 			_bind_label(body,func():return "%s %d / %d"%[_resource_name(resource),e.project.materials.get(resource,0),definition.materials[resource]])
-		_bind_label(body,func():return "완공" if e.project.complete else "자동 조달 · 공사 %d초"%ceil(e.project.remainingS))
+		_bind_label(body,func():return "완공" if e.project.complete else ("운송 대기 · 공사 %d초" if game.world_mode() else "자동 조달 · 공사 %d초")%ceil(e.project.remainingS))
 	elif e.kind=="launchpad":
 		for r in game.data.rocket:
 			var resource=r
@@ -297,8 +322,9 @@ func _facility():
 		_action("로켓 발사",{"type":"launch"},bool(game.state.rocket.launched))
 	else:
 		if game.income_facility(e):
-			_section("운영 수익 · %d / 10"%e.get("incomeLevel",0))
-			_label(body,"₩ %s / 생산 완료"%Factory.money(game.income_per_batch(e)))
+			_section(("판매 단가" if game.world_mode() else "운영 수익")+" · %d / 10"%e.get("incomeLevel",0))
+			if game.world_mode():_label(body,"+%d%%"%round(e.get("incomeLevel",0)*12))
+			else:_label(body,"₩ %s / 생산 완료"%Factory.money(game.income_per_batch(e)))
 			var level=int(e.get("incomeLevel",0))
 			_action("수익 개선 · ₩ "+Factory.money(f.incomeCosts[mini(level,9)]),{"type":"upgradeIncome","entityId":e.id},level>=10)
 		if e.kind not in ["belt","splitter","launchpad"]:
@@ -310,7 +336,7 @@ func _facility():
 		_action("생산 개선 · ₩ "+Factory.money(f.upgradeCosts[int(e.level)-1]),{"type":"upgrade","entityId":e.id},e.level>=f.maxLevel)
 	var row=_row();_spacer(row)
 	var demolish=_button(row,"철거",func():confirm("시설을 철거하고 내부 재고와 투자금의 50%를 돌려받아요.",func():_command({"type":"demolish","entityId":e.id})))
-	demolish.disabled=e.id in ["e1","e2","e3"]
+	demolish.disabled=e.id in ["e1","e2","e3"] or e.get("starter",false)
 func _stock_text(values) -> String:
 	var names=[]
 	for r in values:names.append(_resource_name(r)+" %d"%values[r])
@@ -323,6 +349,10 @@ func _choice(title,resources,current,action:Callable):
 		if r==current or (current==null and r==""):option.select(i)
 	option.item_selected.connect(func(index):action.call(resources[index]))
 func _build_list():
+	if game.world_mode():
+		var row=_row();_spacer(row)
+		_button(row,"컨베이어 연결",func():world_tools.begin("route"))
+		_button(row,"부지 정리",func():world_tools.begin("clear"))
 	for kind in game.data.facilities:
 		var id=kind;var f=game.data.facilities[kind];var known=game.unlocked(kind)
 		var text=f.name+"\n"+_cost(f) if known else "?"
@@ -330,9 +360,10 @@ func _build_list():
 		var button=_button(body,text,func():build_kind=id;map.building=id;sheet_fraction=0;_layout())
 		button.disabled=not known;button.alignment=HORIZONTAL_ALIGNMENT_RIGHT
 func _inventory():
+	if game.world_mode():_section("도시 자재 · 창고 합계")
 	_button(body,"주문 출하 →",func():show_tab("trade"))
 	for r in game.data.resources:
-		var resource=r;var row=_row();_label(row,_resource_name(r));_spacer(row);_bind_label(row,func():return str(int(game.state.bag.get(resource,0))) if game.known_resource(resource) else "?")
+		var resource=r;var row=_row();_label(row,_resource_name(r));_spacer(row);_bind_label(row,func():return str(int(game.stock(resource))) if game.known_resource(resource) else "?")
 		var selector=OptionButton.new();selector.custom_minimum_size=Vector2(125,48)*scale_ui;row.add_child(selector)
 		var choices=[0,20,50,100,200,500,1000,-1]
 		if game.state.factory.reserves[r] not in choices:choices.append(game.state.factory.reserves[r])
@@ -361,16 +392,19 @@ func _district(id):
 	_label(body,d.name+" %d×%d"%[n,n],true)
 	if n<6:_action("확장 · ₩ "+Factory.money(offer.cash),{"type":"expand","districtId":id})
 	_button(body,"지도에서 보기",func():map.focus_district(id);show_tab("map"))
+func _project_effect(kind):
+	return "판매 단가 +25%" if game.world_mode() and kind=="cabin" else game.data.projects[kind].effect
 func _industry():
-	if not game.state.unlocks.get("smelting",false):_action("제련 연구 · ₩ "+Factory.money(game.data.research.cash),{"type":"research","kind":"smelting"},game.produced("copper")<20)
-	for id in game.data.districts:
-		var d=game.data.districts[id]
-		if game.district_known(id):_district(id)
-		else:_label(body,"?")
+	if not game.state.unlocks.get("smelting",false):_action("제련 연구 · ₩ "+Factory.money(game.data.research.cash) if game.stage_index()>=1 else "?",{"type":"research","kind":"smelting"},game.produced("copper")<20)
+	if game.world_mode():_label(body,"128 × 128")
+	else:
+		for id in game.data.districts:
+			if game.district_known(id):_district(id)
+			else:_label(body,"?")
 	_section("도시 건설")
 	for kind in game.data.projects:
 		var id=kind;var enabled=game.unlocked(id)
-		var button=_button(body,game.data.facilities[id].name+" · "+game.data.projects[id].effect if enabled else "?",func():show_tab("build");build_kind=id;sheet_fraction=0;_layout())
+		var button=_button(body,game.data.facilities[id].name+" · "+_project_effect(id) if enabled else "?",func():show_tab("build");build_kind=id;sheet_fraction=0;_layout())
 		button.disabled=not enabled
 	_label(body,"방치 생산 · 최대 2시간" if game.state.unlocks.offline else "?")
 func _records():
@@ -379,15 +413,18 @@ func _records():
 	var entries=game.state.records.duplicate();entries.reverse()
 	for entry in entries:
 		var text=entry.type
-		if text.begins_with("first_"):text=game.data.facilities.get(text.trim_prefix("first_"),{}).get("name",{"first_automation":"첫 자동화","first_power":"첫 전력 생산","first_auto_sale":"첫 자동 판매","first_shipment":"첫 주문 출하","first_launch":"첫 로켓 발사"}.get(text,text))
+		if text.begins_with("first_"):text=game.data.facilities.get(text.trim_prefix("first_"),{}).get("name",{"first_automation":"첫 자동화","first_power":"첫 전력 생산","first_auto_sale":"첫 자동 판매","first_shipment":"첫 주문 출하","first_launch":"첫 로켓 발사","first_clearing":"첫 부지 정리","first_route":"첫 컨베이어 연결"}.get(text,text))
 		if text.begins_with("complete_"):text=game.data.facilities.get(text.trim_prefix("complete_"),{}).get("name","도시 건물")+" 완공"
+		if entry.type=="open_world":text="큰 월드 이전"
 		if entry.type.begins_with("stage_"):text=game.data.stageNames[game.data.stages.find(entry.type.trim_prefix("stage_"))]
 		_label(body,"%d분  %s"%[floor(entry.atS/60),text])
 func _settings():
+	if not game.world_mode():
+		_button(body,"큰 월드로 이전",func():confirm("자금·시설·재고를 보존해 큰 월드로 이전해요. 공장 원료는 실제 운송망을 통해 공급해요.",func():_save();_command({"type":"migrateWorld"});_focus_city();show_tab("map")))
 	_label(body,"이 브라우저 / 기기에 자동 저장")
 	_button(body,"백업 내보내기",_export_backup)
 	_button(body,"웹 도시 / Godot 백업 불러오기",_import_backup)
-	_button(body,"새 도시 시작",func():confirm("현재 Godot 도시를 새로 시작해요. 백업을 먼저 보관해 주세요.",func():game.fresh();selected="e1";allow_save=true;_save();show_tab("map");map.focus_district()))
+	_button(body,"새 도시 시작",func():confirm("현재 Godot 도시를 새로 시작해요. 백업을 먼저 보관해 주세요.",func():game.fresh();selected="e1";allow_save=true;_save();show_tab("map");_focus_city()))
 func _refresh():
 	cash_label.text="₩ "+Factory.money(game.state.cash)
 	stage_label.text="RUST CITY · "+game.data.stageNames[game.stage_index()]
@@ -448,7 +485,7 @@ func _import_backup():
 func _prepare_import(text):
 	var snapshot=store.parse(text)
 	if snapshot.is_empty():message(store.last_error);return
-	confirm("백업 도시로 교체할까요? 현재 Godot 도시를 먼저 내보내 보관할 수 있어요.",func():game.state=snapshot.state;selected="e1";allow_save=true;await _catch_up(maxf(0,Time.get_unix_time_from_system()-snapshot.savedAtMs/1000.0));_save();show_tab("map");map.focus_district())
+	confirm("백업 도시로 교체할까요? 현재 Godot 도시를 먼저 내보내 보관할 수 있어요.",func():game.state=snapshot.state;selected="e1";allow_save=true;await _catch_up(maxf(0,Time.get_unix_time_from_system()-snapshot.savedAtMs/1000.0));_save();show_tab("map");_focus_city())
 func _ui_test():
 	var before={}
 	for child in body.get_children():

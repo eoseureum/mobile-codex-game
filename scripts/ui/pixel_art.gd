@@ -107,6 +107,12 @@ static func image(kind:String,frame=0) -> Image:
 	if kind.begins_with("icon_"):icon(im,kind.trim_prefix("icon_"));return im
 	if kind=="cat":cat(im,frame);return im
 	if kind=="tree":tree(im,7,2);return im
+	if kind.begins_with("ore_"):
+		var color={"ore_stone":"bec1ac","ore_coal":"535c55","ore_copper":"d59866","ore_iron":"c9d5cd"}.get(kind,"9aa89a")
+		shadow(im);rect(im,10,9,12,3,INK);rect(im,6,12,21,5,INK);rect(im,4,17,25,10,INK)
+		rect(im,11,10,10,3,"adb6a2");rect(im,7,13,19,6,"adb6a2");rect(im,5,19,23,7,"859b8a")
+		for at in [Vector2i(10,14),Vector2i(19,17),Vector2i(8,22),Vector2i(23,23)]:rect(im,at.x,at.y,3,2,color)
+		return im
 	if kind in ["grass","yard","wild","rock","water"]:
 		var base="96ad73" if kind=="wild" else "a7ba7c"
 		if kind=="yard":base="c8bb8b"

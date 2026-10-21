@@ -1,5 +1,6 @@
 extends Control
 signal tile_pressed(tile: Vector2i)
+const World=preload("res://scripts/core/world_map.gd")
 const Art=preload("res://scripts/ui/pixel_art.gd")
 var game
 var zoom=1.0
@@ -7,6 +8,10 @@ var tile_size=96.0
 var camera=Vector2.ZERO
 var selection=Vector2i(0,0)
 var building=""
+var preview_path=[]
+var preview_clear=[]
+var preview_area=Rect2i()
+var work_origin=Vector2i(-1,-1)
 var pressed=false
 var dragging=false
 var press_at=Vector2.ZERO
@@ -22,14 +27,26 @@ func _ready():
 	font=load("res://assets/fonts/RustCity.otf")
 func focus_district(id="forest"):
 	if game==null:return
+	if game.world_mode():
+		zoom=clampf(size.x/(tile_size*6),0.5,1.0)
+		focus_point(Vector2i(int(game.state.world.spawn.x),int(game.state.world.spawn.y)));return
 	var d=game.data.districts[id]
 	var n=maxf(3,game.state.districts[id].size)
 	camera=(size*Vector2(0.5,0.47)-Vector2(d.x+n/2,d.y+n/2)*tile_size*zoom).round()
 	queue_redraw()
+func focus_point(tile:Vector2i):
+	camera=(size*Vector2(0.5,0.47)-(Vector2(tile)+Vector2.ONE*0.5)*tile_size*zoom).round()
+	clamp_camera();queue_redraw()
+func clamp_camera():
+	if not game.world_mode():return
+	var pad=tile_size*0.5
+	camera.x=clampf(camera.x,size.x-World.SIZE*tile_size*zoom-pad,pad)
+	camera.y=clampf(camera.y,size.y-World.SIZE*tile_size*zoom-pad,pad)
 func zoom_by(delta):
 	var old=zoom
 	zoom=clampf(zoom+delta,0.45,1.7)
 	camera=(size/2-(size/2-camera)*zoom/old).round()
+	clamp_camera()
 	queue_redraw()
 func _gui_input(e):
 	if e is InputEventMouseButton:
@@ -45,7 +62,7 @@ func _gui_input(e):
 			accept_event()
 	if e is InputEventMouseMotion and pressed:
 		if e.position.distance_to(press_at)>8*tile_size/96.0:dragging=true
-		if dragging:camera+=e.position-last_at;queue_redraw()
+		if dragging:camera+=e.position-last_at;clamp_camera();queue_redraw()
 		last_at=e.position
 		accept_event()
 func record_transfers():
@@ -70,6 +87,9 @@ func _draw():
 	if game==null:return
 	draw_rect(Rect2(Vector2.ZERO,size),Color("a7ba7c"))
 	var unit=tile_size*zoom
+	var known={}
+	if game.world_mode():
+		for r in World.NODE_TYPES:known[r]=game.known_resource(r)
 	var occupied={}
 	for e in game.state.entities.values():occupied[Vector2i(int(e.x),int(e.y))]=true
 	var selected_id=game.at(selection.x,selection.y).get("id","")
@@ -78,22 +98,24 @@ func _draw():
 	for y in range(ymin,ymax):
 		for x in range(xmin,xmax):
 			var r=tile_rect(x,y)
-			var owned=x>=0 and y>=0 and x<18 and y<12 and game.owned(x,y)
+			var owned=game.owned(x,y)
 			var id=game.district_at(x,y) if x>=0 and y>=0 and x<18 and y<12 else ""
 			var variant=posmod(x*13+y*7,4)
 			_sprite("grass" if owned else "wild",r,variant)
-			if owned:
+			if game.world_mode():
 				if occupied.has(Vector2i(x,y)):_sprite("yard",r,variant)
-				else:
-					# Small corner stones mark useful plots, without a full grid over the grass.
-					var p=maxf(1,unit/32)
-					draw_rect(Rect2(r.position+Vector2(2,2)*p,Vector2(2,1)*p),Color("c7cf98"))
+				elif owned:
+					var resource=World.resource_at(game.state.world,x,y)
+					if resource=="log":_sprite("tree",r)
+					elif not resource.is_empty():_sprite("ore_"+(resource if known[resource] else "unknown"),r)
+					elif game.state.world.cleared.has(game.key(x,y)):_sprite("yard",r,variant)
 			else:
-				if id=="mines":_sprite("rock",r,variant)
-				if posmod(x*17+y*31,9)==0:_sprite("tree",r.grow(-unit*0.12))
-				if posmod(x*11+y*23,17)==0:
-					var p=maxf(1,unit/32);var at=r.position+Vector2(10,20)*p
-					draw_rect(Rect2(at,Vector2(1,2)*p),Color("66815a"));draw_rect(Rect2(at-Vector2(1,1)*p,Vector2(3,2)*p),Color("e4cf85"))
+				if owned:
+					if occupied.has(Vector2i(x,y)):_sprite("yard",r,variant)
+				else:
+					if id=="mines":_sprite("rock",r,variant)
+					if posmod(x*17+y*31,9)==0:_sprite("tree",r.grow(-unit*0.12))
+
 	var frame=int(floor(game.state.clock.elapsedS*5))%4
 	for e in game.state.entities.values():
 		var r=tile_rect(int(e.x),int(e.y))
@@ -140,3 +162,19 @@ func _draw():
 		var px=maxf(1,round(unit/32))
 		draw_rect(Rect2(at-Vector2.ONE*3*px,Vector2.ONE*6*px),INK)
 		draw_rect(Rect2(at-Vector2.ONE*2*px,Vector2.ONE*4*px),Color(game.data.resources[p.r].color))
+
+	if preview_area.has_area():
+		var top=tile_rect(preview_area.position.x,preview_area.position.y).position
+		var bottom=tile_rect(preview_area.end.x-1,preview_area.end.y-1).end
+		draw_rect(Rect2(top,bottom-top),Color("e4b66a38"));draw_rect(Rect2(top,bottom-top),Color("ffe0a0"),false,2)
+	for i in range(preview_path.size()):
+		var p=preview_path[i];var rect=tile_rect(p.x,p.y)
+		draw_rect(rect.grow(-unit*0.06),Color("fff0af75"))
+		if i<preview_path.size()-1:
+			var next=preview_path[i+1];var direction=Vector2(next-p)
+			var center=rect.get_center();draw_line(center-direction*unit*0.18,center+direction*unit*0.18,INK,3)
+			var tip=center+direction*unit*0.18;var side=Vector2(-direction.y,direction.x)
+			draw_line(tip,tip-direction*unit*0.12+side*unit*0.1,INK,3);draw_line(tip,tip-direction*unit*0.12-side*unit*0.1,INK,3)
+	for pos in preview_clear:
+		var p=World.parse_key(pos);_corners(tile_rect(p.x,p.y).grow(-unit*0.05),Color("d78158"))
+	if work_origin.x>=0:_corners(tile_rect(work_origin.x,work_origin.y),Color("fff0af"))

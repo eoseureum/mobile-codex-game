@@ -32,6 +32,8 @@ jobs:
         run: godot --headless --path . --editor --quit
       - name: Run factory and save regression tests
         run: godot --headless --path . --script tests/test_runner.gd
+      - name: Check open world, routes, local inventory and clearing
+        run: godot --headless --path . --script tests/test_world.gd
       - name: Check stable production controls
         run: godot --headless --path . -- --ui-check
       - name: Check floating layout and touch targets
