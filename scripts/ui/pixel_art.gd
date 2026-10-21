@@ -126,6 +126,15 @@ static func image(kind:String,frame=0) -> Image:
 	var im=Image.create(32,32,false,Image.FORMAT_RGBA8)
 	im.fill(Color.TRANSPARENT)
 	if kind.begins_with("icon_"):icon(im,kind.trim_prefix("icon_"));return im
+	if kind.begins_with("item_"):
+		var r=kind.trim_prefix("item_")
+		if r=="log":log_pile(im,4,10);log_pile(im,12,17)
+		elif r=="plank":
+			for y in [8,15,22]:panel(im,4,y,24,5,"d9b67b");rect(im,9,y+2,12,1,"ad8054")
+		else:
+			var colors={"stone":"a8b1a2","coal":"56615b","copper":"d89b65","iron":"b9cac4","wire":"d9ad64","copperIngot":"c88652","ironIngot":"b8c5bd","machinePart":"859e98","structure":"9bae8d","electronics":"86b5b3","precision":"afa1c1","fuel":"e0c17b"}
+			panel(im,7,9,19,17,colors.get(r,"a8b1a2"));rect(im,9,11,13,3,"e0d7ac");rect(im,10,22,13,2,INK)
+		return im
 	if kind=="tree":tree(im,7,2);return im
 	if kind.begins_with("ore_"):
 		var color={"ore_stone":"bec1ac","ore_coal":"535c55","ore_copper":"d59866","ore_iron":"c9d5cd"}.get(kind,"9aa89a")

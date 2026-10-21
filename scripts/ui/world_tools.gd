@@ -80,7 +80,7 @@ func tile_panel():
 		if game.known_resource(r) and game.unlocked(kind):
 			_button(game.data.facilities[kind].name+" · "+ui._cost(kind),func():ui._build_at(kind,tile))
 		else:ui._label(ui.body,"?")
-		_button("부지 정리",func():clear_one(tile),not game.known_resource(r) or game.state.entities.is_empty())
+		if not game.state.entities.is_empty():_button("부지 정리",func():clear_one(tile),not game.known_resource(r))
 	else:
 		ui._label(ui.body,"빈 부지",true)
 		_button("시설 건설",func():ui.show_tab("build"))

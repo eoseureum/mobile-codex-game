@@ -36,6 +36,8 @@ jobs:
         run: godot --headless --path . --script tests/test_world.gd
       - name: Check empty city opening and paid first factory line
         run: godot --headless --path . --script tests/test_empty_start.gd
+      - name: Check opening discovery and atomic connected expansion
+        run: godot --headless --path . --script tests/test_opening_ux.gd
       - name: Check production-driven facility animations
         run: godot --headless --path . --script tests/test_motion.gd
       - name: Check stable production controls

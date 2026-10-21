@@ -6,6 +6,8 @@ const World=preload("res://scripts/core/world_map.gd")
 const WorldTools=preload("res://scripts/ui/world_tools.gd")
 const Overview=preload("res://scripts/ui/world_overview.gd")
 const Art=preload("res://scripts/ui/pixel_art.gd")
+const Opening=preload("res://scripts/ui/opening_ux.gd")
+const ProductionCard=preload("res://scripts/ui/production_card.gd")
 var game=Factory.new()
 var store=SaveStore.new()
 var map
@@ -45,6 +47,9 @@ var import_callback
 var dialog: ConfirmationDialog
 var pending_action: Callable
 var auto_checks=false
+var inspect_details=false
+var catalog_all=false
+var inventory_details=false
 
 func _ready():
 	auto_checks="--ui-check" in OS.get_cmdline_user_args()
@@ -157,7 +162,7 @@ func _command(c):
 	if busy:return
 	var result=game.command(c)
 	if result!="OK":message(_error(result));return
-	if c.get("type")=="build":selected=game.at(c.x,c.y).get("id","")
+	if c.get("type") in ["build","buildLinked"]:selected=game.at(c.x,c.y).get("id","")
 	_save();_rebuild()
 func message(text):
 	toast_label.text=text;toast_until=Time.get_ticks_msec()+3500;_layout()
@@ -184,7 +189,7 @@ func _layout():
 		var focus=_box(Color.TRANSPARENT);focus.border_color=Color("b58d4f");focus.shadow_size=0;theme.set_stylebox("focus",type,focus)
 	theme.set_color("font_color","Label",Color("414b38"))
 	map.position=Vector2.ZERO;map.size=size;map.tile_size=96*u
-	overview.visible=game.world_mode();overview.position=Vector2(16,114)*u;overview.size=Vector2(94,94)*u
+	overview.visible=game.world_mode() and Opening.feature(game,"overview");overview.position=Vector2(16,114)*u;overview.size=Vector2(94,94)*u
 	header.position=Vector2.ZERO;header.size=size
 	wallet.position=Vector2(16,16)*u;wallet.size=Vector2(214,86)*u;wallet.add_theme_stylebox_override("panel",_box(Color("fff2cf"),12))
 	cash_label.position=Vector2(14,24)*u;cash_label.add_theme_font_size_override("font_size",int(28*u))
@@ -235,21 +240,28 @@ func _layout_title():
 		var active=b.get_meta("tab")==tab
 		b.add_theme_stylebox_override("normal",_box(Color("e2b86b") if active else Color("fff2cf")))
 func show_tab(value):
-	world_tools.reset();build_kind="";tab=value;sheet_fraction=0 if tab=="map" else 0.48;_rebuild();_layout()
+	world_tools.reset();build_kind="";inspect_details=false;tab=value;sheet_fraction=0 if tab=="map" else 0.48;_rebuild();_layout()
+func _build_linked(quote):
+	confirm(game.data.facilities[quote.kind].name+" + 연결\n₩ "+Factory.money(quote.cash),func():
+		var result=game.command({"type":"buildLinked","kind":quote.kind,"sourceId":quote.sourceId,"x":quote.x,"y":quote.y})
+		if result!="OK":message(_error(result));return
+		selected=game.at(quote.x,quote.y).id;selected_tile=Vector2i(quote.x,quote.y);map.selection=selected_tile
+		inspect_details=false;tab="map";sheet_fraction=0.42;_save();_rebuild();_layout();map.focus_point(selected_tile))
 func _build_at(kind,tile):
 	confirm(game.data.facilities[kind].name+" 건설\n"+_cost(kind),func():
 		var result=game.command({"type":"build","kind":kind,"x":tile.x,"y":tile.y})
 		if result=="OK":
-			selected=game.at(tile.x,tile.y).id;tab="map";build_kind="";sheet_fraction=0.56;_save();_rebuild();_layout()
+			selected=game.at(tile.x,tile.y).id;tab="map";inspect_details=false;build_kind="";sheet_fraction=0.42;_save();_rebuild();_layout()
 		else:message(_error(result)))
 func _tile(tile):
 	if game.world_mode() and not game.owned(tile.x,tile.y):return
 	if not game.world_mode() and (tile.x<0 or tile.y<0 or tile.x>=18 or tile.y>=12):return
 	selected_tile=tile;map.selection=tile
 	if game.world_mode() and world_tools.handle_tile(tile):return
+	if not map.opportunity.is_empty() and tab=="map" and tile==Vector2i(map.opportunity.x,map.opportunity.y):_build_linked(map.opportunity);return
 	var e=game.at(tile.x,tile.y)
 	if tab=="build" and not build_kind.is_empty() and e.is_empty() and game.owned(tile.x,tile.y):_build_at(build_kind,tile);return
-	selected=e.get("id","");tab="map";sheet_fraction=0.56;_rebuild();_layout()
+	selected=e.get("id","");inspect_details=false;tab="map";sheet_fraction=0.28 if e.is_empty() else 0.42;_rebuild();_layout()
 
 func _signature() -> String:
 	var value=game.state.stage+str(game.recorded("first_auto_sale"))
@@ -259,9 +271,12 @@ func _signature() -> String:
 		for id in game.data.districts:value+=str(game.district_known(id))
 	value+=str(game.produced("copper")>=20)
 	if tab=="trade":value+=str(game.trade().active!=null)+str(game.trade().completed)+str(game.trade().cooldownS<=0)
+	var selected_entity=game.state.entities.get(selected,{})
+	if selected_entity.get("kind","")=="warehouse":value+=str(Opening.handled_resources(game,selected_entity))
 	return value
 func _rebuild():
 	if body==null:return
+	map.opportunity={}
 	var previous=scroll.scroll_vertical
 	bindings=[]
 	for child in body.get_children():body.remove_child(child);child.queue_free()
@@ -285,6 +300,9 @@ func _facility():
 		if not id.is_empty():_district(id)
 		_button(body,"시설 건설",func():show_tab("build"))
 		return
+	if game.world_mode() and not inspect_details and not game.is_project(e.kind) and e.kind!="launchpad":ProductionCard.show(self,e);return
+	if game.world_mode():
+		var back=_row();_spacer(back);_button(back,"접기",func():inspect_details=false;_rebuild())
 	_bind_label(body,func():return game.status(e))
 	var f=game.recipe(e)
 	if e.id==game.state.factory.get("pioneerForestId",""):
@@ -360,19 +378,24 @@ func _choice(title,resources,current,action:Callable):
 func _build_list():
 	if game.world_mode():
 		var row=_row();_spacer(row)
-		_button(row,"컨베이어 연결",func():world_tools.begin("route")).disabled=game.state.entities.is_empty()
-		_button(row,"부지 정리",func():world_tools.begin("clear")).disabled=game.state.entities.is_empty()
-	for kind in game.data.facilities:
+		if game.recorded("first_sawmill"):
+			_button(row,"컨베이어 연결",func():world_tools.begin("route"))
+			_button(row,"부지 정리",func():world_tools.begin("clear"))
+	for kind in Opening.catalog(game,catalog_all):
 		var id=kind;var f=game.data.facilities[kind];var known=game.unlocked(kind)
 		var text=f.name+"\n"+_cost(kind) if known else "?"
 		if known and game.is_project(kind):text+="\n"+_stock_text(game.data.projects[kind].materials)
 		var button=_button(body,text,func():build_kind=id;map.building=id;sheet_fraction=0;_layout())
 		button.disabled=not known;button.alignment=HORIZONTAL_ALIGNMENT_RIGHT
+	if not game.state.entities.is_empty():
+		var row=_row();_spacer(row);_button(row,"주요 시설" if catalog_all else "전체 시설",func():catalog_all=not catalog_all;_rebuild())
 func _inventory():
 	if game.world_mode():_section("도시 자재 · 창고 합계")
-	_button(body,"주문 출하 →",func():show_tab("trade"))
+	if Opening.feature(game,"trade"):_button(body,"주문 출하 →",func():show_tab("trade"))
 	for r in game.data.resources:
+		if not inventory_details and not game.known_resource(r):continue
 		var resource=r;var row=_row();_label(row,_resource_name(r));_spacer(row);_bind_label(row,func():return str(int(game.stock(resource))) if game.known_resource(resource) else "?")
+		if not inventory_details:continue
 		var selector=OptionButton.new();selector.custom_minimum_size=Vector2(125,48)*scale_ui;row.add_child(selector)
 		var choices=[0,20,50,100,200,500,1000,-1]
 		if game.state.factory.reserves[r] not in choices:choices.append(game.state.factory.reserves[r])
@@ -381,6 +404,7 @@ func _inventory():
 			if choices[i]==game.state.factory.reserves[r]:selector.select(i)
 		selector.disabled=not game.known_resource(r)
 		selector.item_selected.connect(func(index):_command({"type":"setReserve","resource":resource,"quantity":selector.get_item_metadata(index)}))
+	var row=_row();_spacer(row);_button(row,"재고만 보기" if inventory_details else "판매 / 보관 설정",func():inventory_details=not inventory_details;_rebuild())
 func _trade_panel():
 	var t=game.trade();var active=t.active
 	_button(body,"← 창고",func():show_tab("inventory"))
@@ -404,18 +428,26 @@ func _district(id):
 func _project_effect(kind):
 	return "판매 단가 +25%" if game.world_mode() and kind=="cabin" else game.data.projects[kind].effect
 func _industry():
-	if not game.state.unlocks.get("smelting",false):_action("제련 연구 · ₩ "+Factory.money(game.data.research.cash) if game.stage_index()>=1 else "?",{"type":"research","kind":"smelting"},game.produced("copper")<20)
-	if game.world_mode():_label(body,"128 × 128")
-	else:
+	if not game.state.unlocks.get("smelting",false):
+		if game.stage_index()>=1:
+			var row=HFlowContainer.new();row.size_flags_horizontal=Control.SIZE_EXPAND_FILL;body.add_child(row)
+			for r in ["copper","stone","coal"]:
+				var resource=r;var need=20 if r=="copper" else game.data.research.materials[r]
+				var chip=HBoxContainer.new();row.add_child(chip);ProductionCard.picture(self,chip,"item_"+r)
+				_bind_label(chip,func():return "%d/%d"%[mini(need,game.produced(resource) if resource=="copper" else game.stock(resource)),need])
+			_action("제련 연구 · ₩ "+Factory.money(game.data.research.cash),{"type":"research","kind":"smelting"},game.produced("copper")<20 or not game.affordable(game.data.research.cash,game.data.research.materials))
+		else:_label(body,"?")
+	if not game.world_mode():
 		for id in game.data.districts:
 			if game.district_known(id):_district(id)
 			else:_label(body,"?")
 	_section("도시 건설")
 	for kind in game.data.projects:
 		var id=kind;var enabled=game.unlocked(id)
+		if not enabled:continue
 		var button=_button(body,game.data.facilities[id].name+" · "+_project_effect(id) if enabled else "?",func():show_tab("build");build_kind=id;sheet_fraction=0;_layout())
 		button.disabled=not enabled
-	_label(body,"방치 생산 · 최대 2시간" if game.state.unlocks.offline else "?")
+	if game.state.unlocks.offline:_label(body,"방치 생산 · 최대 2시간")
 func _records():
 	_label(body,"누적 수입 ₩ "+Factory.money(game.state.totals.earned),true)
 	_label(body,"도시 가동 %d분"%floor(game.state.clock.elapsedS/60))
@@ -442,6 +474,13 @@ func _refresh():
 	income_label.text="₩ %s / 분"%Factory.money(earned*60/maxf(1,minf(60,game.state.clock.elapsedS)))
 	if game.stage_index()>=3:income_label.text+="   전력 %.0f / %.0f"%[game.state.power.generation,game.state.power.demand]
 	for binding in bindings:binding.call()
+	var warehouse=header.get_node("WarehouseButton");warehouse.visible=Opening.feature(game,"inventory")
+	overview.visible=game.world_mode() and Opening.feature(game,"overview")
+	for button in nav.get_children():
+		var available=Opening.feature(game,button.get_meta("tab"));button.disabled=not available
+		button.modulate.a=1.0 if available else 0.0
+		button.mouse_filter=Control.MOUSE_FILTER_STOP if available else Control.MOUSE_FILTER_IGNORE
+		button.focus_mode=Control.FOCUS_ALL if available else Control.FOCUS_NONE
 	_layout_title()
 func _process(delta):
 	if game==null or header==null:return

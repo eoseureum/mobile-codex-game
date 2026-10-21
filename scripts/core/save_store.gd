@@ -107,6 +107,7 @@ func validate(snapshot) -> String:
 		if not event is Dictionary or not event.get("type") is String or not (event.get("atS") is int or event.get("atS") is float) or event.atS<0 or event.atS>s.clock.elapsedS: return "도시 기록이 올바르지 않아요."
 	for sale in s.recentSales:
 		if not sale is Dictionary or not whole(sale.get("cash")) or sale.get("mode","") not in ["operating","market","shipment"] or not (sale.get("atS") is int or sale.get("atS") is float): return "수입 기록이 올바르지 않아요."
+		if sale.has("entityId") and (not sale.entityId is String or ids.search(sale.entityId)==null):return "수입 기록이 올바르지 않아요."
 	if not resources(s.rocket.get("delivered")) or not whole(s.rocket.get("launched"),0,1): return "로켓 정보가 올바르지 않아요."
 	for r in s.rocket.delivered:
 		if s.rocket.delivered[r]>game.data.rocket.get(r,0): return "로켓 납품이 올바르지 않아요."

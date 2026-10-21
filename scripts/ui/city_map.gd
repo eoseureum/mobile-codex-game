@@ -18,6 +18,10 @@ var dragging=false
 var press_at=Vector2.ZERO
 var last_at=Vector2.ZERO
 var particles=[]
+var opportunity={}
+var sale_bubbles=[]
+var sale_state={}
+var last_sale_time=-1.0
 var font: Font
 const INK=Color("443d3c")
 
@@ -67,12 +71,21 @@ func _gui_input(e):
 		last_at=e.position
 		accept_event()
 func record_transfers():
+	if not is_same(sale_state,game.state):sale_state=game.state;last_sale_time=game.state.clock.elapsedS-game.DT-0.000001;sale_bubbles=[]
+	for sale in game.sales:
+		if sale.atS<=last_sale_time or not game.state.entities.has(sale.get("entityId","")):continue
+		var e=game.state.entities[sale.entityId]
+		if sale_bubbles.size()<16:sale_bubbles.append({"at":Vector2(e.x+0.5,e.y+0.1),"cash":sale.cash,"age":0.0})
+	last_sale_time=game.state.clock.elapsedS-game.DT
 	for t in game.transfers:
 		if particles.size()>=50:break
+		if not game.state.entities.has(t.sourceId) or not game.state.entities.has(t.targetId):continue
 		particles.append({"a":Vector2(game.state.entities[t.sourceId].x+0.5,game.state.entities[t.sourceId].y+0.5),"b":Vector2(game.state.entities[t.targetId].x+0.5,game.state.entities[t.targetId].y+0.5),"r":t.resource,"age":0.0})
 func _process(delta):
 	for p in particles:p.age+=delta
 	particles=particles.filter(func(p):return p.age<0.65)
+	for p in sale_bubbles:p.age+=delta
+	sale_bubbles=sale_bubbles.filter(func(p):return p.age<1.4)
 	queue_redraw()
 func tile_rect(x:int,y:int) -> Rect2:
 	var a=(camera+Vector2(x,y)*tile_size*zoom).round()
@@ -148,6 +161,16 @@ func _draw():
 			draw_rect(Rect2(r.position+Vector2(25,2)*p,Vector2(2,5)*p),INK);draw_rect(Rect2(r.position+Vector2(29,2)*p,Vector2(2,5)*p),INK)
 		if game.is_project(e.kind) and not e.project.complete:_corners(r.grow(-unit*0.08),Color("c99c5c"))
 		if e.id==selected_id:_corners(r.grow(-unit*0.02),Color("fff0ae"))
+	if not opportunity.is_empty():
+		var ghost=tile_rect(opportunity.x,opportunity.y)
+		var ready=game.affordable(opportunity.cash,opportunity.materials)
+		var tint=Color(1,1,1,0.35+0.15*(0.5+0.5*sin(Time.get_ticks_msec()*0.003)))
+		draw_texture_rect(Art.texture(opportunity.kind),ghost,false,tint)
+		_corners(ghost.grow(-unit*0.02),Color("c5e49d") if ready else Color("f4d487"))
+		for i in range(1,opportunity.path.size()):
+			var a=opportunity.path[i-1];var b=opportunity.path[i]
+			var start=tile_rect(a.x,a.y).get_center();var finish=tile_rect(b.x,b.y).get_center()
+			for n in range(1,4):draw_circle(start.lerp(finish,n/4.0),maxf(1,unit/48),Color("f4d487"))
 	if selected_id.is_empty():_corners(tile_rect(selection.x,selection.y).grow(-unit*0.03),Color("f4d487"))
 	for p in particles:
 		var t=clampf(p.age/0.65,0,1)
@@ -155,6 +178,13 @@ func _draw():
 		var px=maxf(1,round(unit/32))
 		draw_rect(Rect2(at-Vector2.ONE*3*px,Vector2.ONE*6*px),INK)
 		draw_rect(Rect2(at-Vector2.ONE*2*px,Vector2.ONE*4*px),Color(game.data.resources[p.r].color))
+	for p in sale_bubbles:
+		var at=camera+p.at*unit-Vector2(0,p.age*unit*0.35)
+		var font_size=maxi(12,int(unit*0.24));var text="+₩ "+RustFactory.money(p.cash)
+		at.x-=font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x*0.5
+		var fade=minf(1,(1.4-p.age)*3)
+		draw_string_outline(font,at,text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size,3,Color(0.27,0.24,0.23,fade))
+		draw_string(font,at,text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size,Color(1,0.94,0.68,fade))
 
 	if preview_area.has_area():
 		var top=tile_rect(preview_area.position.x,preview_area.position.y).position
