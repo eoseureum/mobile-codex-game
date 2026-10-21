@@ -18,7 +18,7 @@ static func phase(game,e) -> float:
 	if e.kind=="generator":return fposmod(time*game.speed(e),1.0) if e.burnRemainingS>0 else -1.0
 	var order=game.state.factory.get("trade",{}).get("active")
 	if e.kind=="warehouse":
-		if e.id=="e3" and order!=null:return fposmod(time*game.effects().loading,1.0)
+		if e==game.shipping_depot() and order!=null:return fposmod(time*game.effects().loading,1.0)
 		if not e.inputs.is_empty() or not e.outputs.is_empty():return fposmod(time*1.5*game.speed(e),1.0)
 		for r in e.get("inventory",{}):
 			var surplus=e.inventory[r]-maxf(0,game.state.factory.reserves[r])

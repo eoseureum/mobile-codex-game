@@ -29,6 +29,11 @@ func invalidate_index():_indexed_size=-1
 func clear_effects():_effects_cache={}
 func stock(r) -> int:return WorldRules.stock(self,r) if world_mode() else int(state.bag.get(r,0))
 func storage_capacity(e) -> int:return 200*int(e.level)
+func construction_materials(kind) -> Dictionary:
+	if world_mode() and state.factory.get("startMode","")=="empty":
+		if kind=="forest" and state.factory.pioneerForestId.is_empty():return {}
+		if kind=="sawmill" and not recorded("first_sawmill"):return {}
+	return data.facilities[kind].materials
 func sale_price(e,r) -> int:return int(floor(price(r)*(1+0.12*e.get("incomeLevel",0))*effects().operating)) if world_mode() else price(r)
 
 func add(store: Dictionary, resource, amount):
@@ -107,6 +112,7 @@ func create_entity(kind,x,y,extra = {}) -> Dictionary:
 
 func unlocked(kind) -> bool:
 	if not data.facilities.has(kind) or stage_index()<data.facilities[kind].tier: return false
+	if world_mode() and state.factory.get("startMode","")=="empty" and state.factory.pioneerForestId.is_empty():return kind=="forest"
 	if kind=="sawmill": return world_mode() or state.districts.forest.size>=2
 	if kind=="generator": return produced("wire")>=10
 	if is_project(kind):
@@ -352,6 +358,7 @@ func production():
 			for r in e.job.output:
 				add(e.outputs,r,e.job.output[r])
 				add(state.totals.produced,r,e.job.output[r])
+			if world_mode():WorldRules.pioneer_sale(self,e)
 			if not world_mode():
 				var value=e.get("incomeCredit",0)+income_per_batch(e)
 				var cash=floor(value+0.000000001)
@@ -401,13 +408,19 @@ func quotes(r,bonus = -1.0) -> Array:
 
 func offers() -> Array:
 	var result=[]
-	var warehouse=false
-	for e in state.entities.values():
-		if e.kind=="warehouse": warehouse=true
-	if not warehouse: return result
+	var depot=shipping_depot()
+	if depot.is_empty(): return result
 	for r in data.resources:
-		if produced(r)>0 and ((state.entities.e3.get("inventory",{}).get(r,0)>0 if world_mode() else state.bag.get(r,0)>0) or state.totals.sold.get(r,0)>0): result.append_array(quotes(r))
+		if produced(r)>0 and ((depot.get("inventory",{}).get(r,0)>0 if world_mode() else state.bag.get(r,0)>0) or state.totals.sold.get(r,0)>0): result.append_array(quotes(r))
 	return result
+
+func shipping_depot() -> Dictionary:
+	var original=state.entities.get("e3",{})
+	if not state.factory.has("startMode") and original.get("kind","")=="warehouse":return original
+	var first={}
+	for e in state.entities.values():
+		if e.kind=="warehouse" and (first.is_empty() or int(e.id.substr(1))<int(first.id.substr(1))):first=e
+	return first
 
 func start_shipment(id) -> bool:
 	var t=trade()

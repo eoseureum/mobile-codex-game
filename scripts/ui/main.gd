@@ -90,7 +90,11 @@ func _ready():
 		await _ui_test()
 
 func _focus_city():
-	var e=game.state.entities.get(selected,game.state.entities.e1)
+	var e=game.state.entities.get(selected,{})
+	if e.is_empty():
+		if game.state.entities.is_empty():
+			e=game.state.world.spawn if game.world_mode() else {"x":0,"y":0};selected=""
+		else:e=game.state.entities.values()[0];selected=e.id
 	selected_tile=Vector2i(int(e.x),int(e.y));map.selection=selected_tile
 	game.invalidate_index();game.clear_effects();world_tools.reset();map.focus_district()
 
@@ -137,9 +141,10 @@ func _row() -> HBoxContainer:
 	var row=HBoxContainer.new();row.add_theme_constant_override("separation",int(10*scale_ui));body.add_child(row);return row
 func _section(text):
 	var l=_label(body,text);l.add_theme_color_override("font_color",Color("84906f"));l.custom_minimum_size.y=36*scale_ui;l.vertical_alignment=VERTICAL_ALIGNMENT_BOTTOM
-func _cost(f) -> String:
+func _cost(kind) -> String:
+	var f=game.data.facilities[kind]
 	var text="₩ "+Factory.money(f.cost)
-	for r in f.materials:text+=" · "+_resource_name(r)+" %d"%f.materials[r]
+	for r in game.construction_materials(kind):text+=" · "+_resource_name(r)+" %d"%game.construction_materials(kind)[r]
 	return text
 func _resource_name(r) -> String: return game.data.resources[r].name if game.known_resource(r) else "?"
 func _spacer(row):
@@ -168,12 +173,13 @@ func _layout():
 	scale_ui=size.x/maxf(1,physical.x)
 	var u=scale_ui
 	theme.default_font_size=int(14*u)
+	theme.set_stylebox("panel","AcceptDialog",_box(Color("fff5d9"),12))
 	for type in ["Button","OptionButton"]:
 		theme.set_stylebox("normal",type,_box(Color("fff2cf")))
 		theme.set_stylebox("hover",type,_box(Color("fff8e1")))
 		theme.set_stylebox("pressed",type,_box(Color("dbe8b5")))
 		theme.set_stylebox("disabled",type,_box(Color("e5e5c3")))
-		for state in ["font_color","font_hover_color","font_pressed_color"]:theme.set_color(state,type,Color("414b38"))
+		for state in ["font_color","font_hover_color","font_pressed_color","font_focus_color"]:theme.set_color(state,type,Color("414b38"))
 		theme.set_color("font_disabled_color",type,Color("969b80"))
 		var focus=_box(Color.TRANSPARENT);focus.border_color=Color("b58d4f");focus.shadow_size=0;theme.set_stylebox("focus",type,focus)
 	theme.set_color("font_color","Label",Color("414b38"))
@@ -221,6 +227,7 @@ func _layout_title():
 	var labels={"inventory":"도시 창고","trade":"주문 출하","industry":"산업과 확장","build":"시설 건설","records":"도시 기록","settings":"도시 관리"}
 	var e=game.state.entities.get(selected,{})
 	handle.text=(game.data.facilities[e.kind].name if not e.is_empty() else "빈 건설 부지") if tab=="map" else labels.get(tab,"")
+	if tab=="map" and game.world_mode() and game.state.entities.is_empty():handle.text="벌목장 건설 · ₩ "+Factory.money(game.data.facilities.forest.cost)
 	if tab=="build" and not build_kind.is_empty():handle.text=game.data.facilities[build_kind].name+" 배치"
 	if world_tools!=null and not world_tools.mode.is_empty():handle.text=world_tools.title()
 	handle.text+="   ↑" if sheet_fraction==0 else "   ↓"
@@ -230,7 +237,7 @@ func _layout_title():
 func show_tab(value):
 	world_tools.reset();build_kind="";tab=value;sheet_fraction=0 if tab=="map" else 0.48;_rebuild();_layout()
 func _build_at(kind,tile):
-	confirm(game.data.facilities[kind].name+" 건설\n"+_cost(game.data.facilities[kind]),func():
+	confirm(game.data.facilities[kind].name+" 건설\n"+_cost(kind),func():
 		var result=game.command({"type":"build","kind":kind,"x":tile.x,"y":tile.y})
 		if result=="OK":
 			selected=game.at(tile.x,tile.y).id;tab="map";build_kind="";sheet_fraction=0.56;_save();_rebuild();_layout()
@@ -280,6 +287,8 @@ func _facility():
 		return
 	_bind_label(body,func():return game.status(e))
 	var f=game.recipe(e)
+	if e.id==game.state.factory.get("pioneerForestId",""):
+		_bind_label(body,func():return "가공 우선 · 남는 통나무 현장 판매" if game.recorded("first_auto_sale") else "통나무 현장 판매 · ₩ "+Factory.money(game.price("log")))
 	if f.cycle>0 and e.kind!="generator":
 		_label(body,_stock_text(f.input)+"  →  "+_stock_text(f.output))
 		var progress=ProgressBar.new();progress.custom_minimum_size.y=8*scale_ui;progress.show_percentage=false;body.add_child(progress)
@@ -336,7 +345,7 @@ func _facility():
 		_action("생산 개선 · ₩ "+Factory.money(f.upgradeCosts[int(e.level)-1]),{"type":"upgrade","entityId":e.id},e.level>=f.maxLevel)
 	var row=_row();_spacer(row)
 	var demolish=_button(row,"철거",func():confirm("시설을 철거하고 내부 재고와 투자금의 50%를 돌려받아요.",func():_command({"type":"demolish","entityId":e.id})))
-	demolish.disabled=e.id in ["e1","e2","e3"] or e.get("starter",false)
+	demolish.disabled=(e.get("starter",false) or (game.trade().active!=null and e==game.shipping_depot())) if game.world_mode() else e.id in ["e1","e2","e3"]
 func _stock_text(values) -> String:
 	var names=[]
 	for r in values:names.append(_resource_name(r)+" %d"%values[r])
@@ -351,11 +360,11 @@ func _choice(title,resources,current,action:Callable):
 func _build_list():
 	if game.world_mode():
 		var row=_row();_spacer(row)
-		_button(row,"컨베이어 연결",func():world_tools.begin("route"))
-		_button(row,"부지 정리",func():world_tools.begin("clear"))
+		_button(row,"컨베이어 연결",func():world_tools.begin("route")).disabled=game.state.entities.is_empty()
+		_button(row,"부지 정리",func():world_tools.begin("clear")).disabled=game.state.entities.is_empty()
 	for kind in game.data.facilities:
 		var id=kind;var f=game.data.facilities[kind];var known=game.unlocked(kind)
-		var text=f.name+"\n"+_cost(f) if known else "?"
+		var text=f.name+"\n"+_cost(kind) if known else "?"
 		if known and game.is_project(kind):text+="\n"+_stock_text(game.data.projects[kind].materials)
 		var button=_button(body,text,func():build_kind=id;map.building=id;sheet_fraction=0;_layout())
 		button.disabled=not known;button.alignment=HORIZONTAL_ALIGNMENT_RIGHT
@@ -497,7 +506,7 @@ func _ui_test():
 	var ok=true
 	for node in before:
 		if node.get_rect()!=before[node]:ok=false
-	game.fresh(0);game.advance(180)
+	game.fresh(0,false);game.advance(180)
 	var t=game.trade();t.lastOfferId=game.offers()[0].id;t.cooldownS=1.0
 	show_tab("trade")
 	var previous_signature=layout_signature

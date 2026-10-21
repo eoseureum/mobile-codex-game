@@ -1,4 +1,5 @@
 extends SceneTree
+const Fixture=preload("res://tests/world_fixture.gd")
 var failures=0
 var checks=0
 func check(value,description):
@@ -11,6 +12,13 @@ func run():
 	main.busy=true
 	root.add_child(main)
 	await process_frame
+	main.game.fresh(0,true,42);main._focus_city();main._rebuild()
+	check(main.game.state.entities.is_empty() and main.selected.is_empty(),"empty city focuses safely without an e1 building")
+	check(main.handle.text.begins_with("벌목장 건설"),"first construction is visible in the floating handle")
+	check(not main._cost("forest").contains("판자"),"first logging camp price has no impossible plank requirement")
+	var confirmation_panel=main.dialog.get_theme_stylebox("panel","AcceptDialog")
+	check(confirmation_panel is StyleBoxFlat and confirmation_panel.bg_color.r>0.8,"first construction confirmation has a light background behind dark labels")
+	check(main.dialog.get_ok_button().get_theme_color("font_focus_color").r<0.5,"focused construction confirmation keeps dark readable text")
 	for viewport_size in [Vector2(390,844),Vector2(960,540),Vector2(320,568),Vector2(844,320)]:
 		main.size=viewport_size
 		await process_frame
@@ -43,7 +51,7 @@ func run():
 	city._gui_input(move)
 	check(city.camera==camera_before+Vector2(60,40),"dragging uncovered map pans the city")
 	press.pressed=false;press.position=move.position;city._gui_input(press)
-	main.game.fresh(0,true,42);main.game.invalidate_index();main._focus_city();main.size=Vector2(390,844);main._layout()
+	Fixture.connected(main.game);main.game.invalidate_index();main._focus_city();main.size=Vector2(390,844);main._layout()
 	main.world_tools.begin("route")
 	main._tile(Vector2i(64,66));main._tile(Vector2i(68,66))
 	check(main.tab=="work" and main.map.preview_path.size()==5,"two tile taps preview the complete route")
@@ -53,7 +61,7 @@ func run():
 	check(main.world_tools.mode.is_empty() and main.map.preview_path.is_empty() and JSON.stringify(main.game.state)==before,"cancelling preview never spends or changes terrain")
 	main.world_tools.begin("route");main._tile(Vector2i(64,66));main._tile(Vector2i(68,66));main.world_tools.commit()
 	check(main.game.state.cash==0 and main.game.at(68,66).kind=="belt" and main.world_tools.mode.is_empty(),"confirmed route is committed and preview closes")
-	main.game.fresh(0,true,42);main.game.invalidate_index();main._focus_city()
+	Fixture.connected(main.game);main.game.invalidate_index();main._focus_city()
 	main._tile(Vector2i(59,69));main.world_tools.clear_one(Vector2i(59,69))
 	check(main.map.preview_clear==["59,69"] and main.map.preview_area.size==Vector2i.ONE,"single tree clearing highlights the affected tile")
 	main.world_tools.commit()
