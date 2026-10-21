@@ -1,63 +1,65 @@
-
-name: Godot Web Deploy
+name: Rust City Godot
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: godot-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     container:
       image: barichello/godot-ci:4.5
-
+    env:
+      XDG_DATA_HOME: /root/.local/share
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup export templates
+      - name: Prepare Godot container dependencies
         run: |
-          mkdir -p ~/.local/share/godot/export_templates
-          cp -r \
-            /root/.local/share/godot/export_templates/4.5.stable \
-            ~/.local/share/godot/export_templates/
-
-          test -f \
-            ~/.local/share/godot/export_templates/4.5.stable/web_nothreads_release.zip
-
-      - name: Import resources
-        run: |
-          godot --headless --path . \
-            --editor --quit
-
-      - name: Export game
+          apt-get update
+          apt-get install -y --no-install-recommends libfontconfig1
+          test -s "$XDG_DATA_HOME/godot/export_templates/4.5.stable/web_nothreads_release.zip"
+      - name: Import resources and validate scripts
+        run: godot --headless --path . --editor --quit
+      - name: Run factory and save regression tests
+        run: godot --headless --path . --script tests/test_runner.gd
+      - name: Check stable production controls
+        run: godot --headless --path . -- --ui-check
+      - name: Export single-threaded web game
         run: |
           mkdir -p build/web
-          godot --headless --path . \
-            --export-release "Web" \
-            build/web/index.html
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+          touch build/.gdignore
+          godot --headless --path . --export-release "Web" build/web/index.html
+          test -s build/web/index.wasm
+          test -s build/web/index.pck
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rust-city-web
+          path: build/web
+      - uses: actions/upload-pages-artifact@v4
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         with:
           path: build/web
-
   deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
-
     permissions:
       pages: write
       id-token: write
-
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
-      - name: Deploy
+      - name: Deploy reviewed main branch
         id: deployment
         uses: actions/deploy-pages@v4

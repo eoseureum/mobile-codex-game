@@ -1,0 +1,1630 @@
+{
+  "facilities": {
+    "forest": {
+      "name": "자동 벌목장",
+      "cost": 2250,
+      "materials": {
+        "plank": 5
+      },
+      "tier": 0,
+      "cycle": 4,
+      "input": {},
+      "output": {
+        "log": 1
+      },
+      "power": 0,
+      "icon": "tree",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        800,
+        1075,
+        1450,
+        1950,
+        2625,
+        3550,
+        4775,
+        6450,
+        8700,
+        11750,
+        15850,
+        21400,
+        28875,
+        38975,
+        52600,
+        71000,
+        95850,
+        129400,
+        174700,
+        235850
+      ],
+      "upgradeMaterials": {
+        "plank": 5
+      },
+      "incomeCosts": [
+        350,
+        475,
+        625,
+        850,
+        1125,
+        1525,
+        2050,
+        2775,
+        3725,
+        5050
+      ],
+      "managerCosts": [
+        950,
+        1625,
+        2750
+      ],
+      "legacyCost": 90
+    },
+    "sawmill": {
+      "name": "제재소",
+      "cost": 1500,
+      "materials": {
+        "plank": 6
+      },
+      "tier": 0,
+      "cycle": 3.5,
+      "input": {
+        "log": 1
+      },
+      "output": {
+        "plank": 3
+      },
+      "power": 0,
+      "icon": "saw",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        525,
+        725,
+        975,
+        1300,
+        1750,
+        2375,
+        3200,
+        4300,
+        5800,
+        7825,
+        10575,
+        14275,
+        19250,
+        25975,
+        35075,
+        47350,
+        63900,
+        86275,
+        116475,
+        157225
+      ],
+      "upgradeMaterials": {
+        "plank": 6
+      },
+      "incomeCosts": [
+        225,
+        325,
+        425,
+        575,
+        750,
+        1025,
+        1375,
+        1850,
+        2500,
+        3375
+      ],
+      "managerCosts": [
+        950,
+        1625,
+        2750
+      ],
+      "legacyCost": 60
+    },
+    "belt": {
+      "name": "컨베이어",
+      "cost": 100,
+      "materials": {},
+      "tier": 0,
+      "cycle": 0,
+      "input": {},
+      "output": {},
+      "power": 0,
+      "icon": "belt",
+      "maxLevel": 2,
+      "upgradeCosts": [
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500
+      ],
+      "upgradeMaterials": {
+        "machinePart": 1
+      },
+      "incomeCosts": [
+        25,
+        25,
+        50,
+        50,
+        50,
+        75,
+        100,
+        125,
+        175,
+        225
+      ],
+      "managerCosts": [
+        950,
+        1625,
+        2750
+      ],
+      "legacyCost": 4
+    },
+    "warehouse": {
+      "name": "창고",
+      "cost": 450,
+      "materials": {},
+      "tier": 0,
+      "cycle": 0,
+      "input": {},
+      "output": {},
+      "power": 0,
+      "icon": "bag",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        175,
+        225,
+        300,
+        400,
+        525,
+        725,
+        975,
+        1300,
+        1750,
+        2350,
+        3175,
+        4300,
+        5775,
+        7800,
+        10525,
+        14200,
+        19175,
+        25900,
+        34950,
+        47175
+      ],
+      "upgradeMaterials": {},
+      "incomeCosts": [
+        75,
+        100,
+        125,
+        175,
+        225,
+        325,
+        425,
+        575,
+        750,
+        1025
+      ],
+      "managerCosts": [
+        950,
+        1625,
+        2750
+      ],
+      "legacyCost": 18
+    },
+    "market": {
+      "name": "직접 판매소",
+      "cost": 500,
+      "materials": {
+        "plank": 2
+      },
+      "tier": 0,
+      "cycle": 0,
+      "input": {},
+      "output": {},
+      "power": 0,
+      "icon": "market",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        175,
+        250,
+        325,
+        450,
+        600,
+        800,
+        1075,
+        1450,
+        1950,
+        2625,
+        3525,
+        4775,
+        6425,
+        8675,
+        11700,
+        15800,
+        21300,
+        28775,
+        38825,
+        52425
+      ],
+      "upgradeMaterials": {
+        "plank": 2
+      },
+      "incomeCosts": [
+        75,
+        125,
+        150,
+        200,
+        250,
+        350,
+        475,
+        625,
+        850,
+        1125
+      ],
+      "managerCosts": [
+        950,
+        1625,
+        2750
+      ],
+      "legacyCost": 20
+    },
+    "splitter": {
+      "name": "분배기",
+      "cost": 300,
+      "materials": {
+        "plank": 2
+      },
+      "tier": 1,
+      "cycle": 0,
+      "input": {},
+      "output": {},
+      "power": 0,
+      "icon": "split",
+      "maxLevel": 2,
+      "upgradeCosts": [
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500,
+        500
+      ],
+      "upgradeMaterials": {
+        "machinePart": 1
+      },
+      "incomeCosts": [
+        50,
+        75,
+        100,
+        125,
+        150,
+        225,
+        275,
+        375,
+        500,
+        675
+      ],
+      "managerCosts": [
+        950,
+        1625,
+        2750
+      ],
+      "legacyCost": 12
+    },
+    "mine": {
+      "name": "광산",
+      "cost": 20000,
+      "materials": {
+        "plank": 6
+      },
+      "tier": 1,
+      "cycle": 5,
+      "input": {},
+      "output": {
+        "copper": 1
+      },
+      "power": 0,
+      "icon": "mine",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        7000,
+        9500,
+        13000,
+        17250,
+        23500,
+        31500,
+        42500,
+        57250,
+        77250,
+        104500,
+        140750,
+        190250,
+        256750,
+        346500,
+        467500,
+        631250,
+        852000,
+        1150250,
+        1553000,
+        2096250
+      ],
+      "upgradeMaterials": {
+        "plank": 6
+      },
+      "incomeCosts": [
+        3000,
+        4250,
+        5500,
+        7500,
+        10000,
+        13500,
+        18250,
+        24750,
+        33250,
+        44750
+      ],
+      "managerCosts": [
+        9500,
+        16250,
+        27500
+      ],
+      "legacyCost": 80
+    },
+    "copperSmelter": {
+      "name": "구리 제련소",
+      "cost": 45000,
+      "materials": {
+        "stone": 10,
+        "plank": 6
+      },
+      "tier": 2,
+      "cycle": 4,
+      "input": {
+        "copper": 1,
+        "coal": 1
+      },
+      "output": {
+        "copperIngot": 1
+      },
+      "power": 0,
+      "icon": "smelter",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        15750,
+        21500,
+        28750,
+        39000,
+        52500,
+        70750,
+        95500,
+        128750,
+        174000,
+        234750,
+        316750,
+        427750,
+        577250,
+        779250,
+        1052000,
+        1420000,
+        1917000,
+        2588000,
+        3493750,
+        4716750
+      ],
+      "upgradeMaterials": {
+        "stone": 10,
+        "plank": 6
+      },
+      "incomeCosts": [
+        6750,
+        9250,
+        12500,
+        16750,
+        22500,
+        30500,
+        41000,
+        55250,
+        74500,
+        100750
+      ],
+      "managerCosts": [
+        9500,
+        16250,
+        27500
+      ],
+      "legacyCost": 180
+    },
+    "wireFactory": {
+      "name": "전선 공장",
+      "cost": 550000,
+      "materials": {
+        "copperIngot": 4,
+        "plank": 6
+      },
+      "tier": 2,
+      "cycle": 4,
+      "input": {
+        "copperIngot": 1
+      },
+      "output": {
+        "wire": 2
+      },
+      "power": 0,
+      "icon": "wire",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        192500,
+        260000,
+        352500,
+        475000,
+        640000,
+        865000,
+        1167500,
+        1575000,
+        2125000,
+        2867500,
+        3872500,
+        5227500,
+        7055000,
+        9525000,
+        12857500,
+        17357500,
+        23430000,
+        31632500,
+        42702500,
+        57647500
+      ],
+      "upgradeMaterials": {
+        "copperIngot": 4,
+        "plank": 6
+      },
+      "incomeCosts": [
+        82500,
+        112500,
+        152500,
+        205000,
+        275000,
+        370000,
+        500000,
+        675000,
+        912500,
+        1230000
+      ],
+      "managerCosts": [
+        95000,
+        162500,
+        275000
+      ],
+      "legacyCost": 220
+    },
+    "generator": {
+      "name": "석탄 발전기",
+      "cost": 1750000,
+      "materials": {
+        "copperIngot": 10,
+        "wire": 10
+      },
+      "tier": 2,
+      "cycle": 10,
+      "input": {
+        "coal": 1
+      },
+      "output": {},
+      "power": 0,
+      "icon": "power",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        612500,
+        827500,
+        1117500,
+        1507500,
+        2035000,
+        2747500,
+        3710000,
+        5007500,
+        6757500,
+        9122500,
+        12317500,
+        16627500,
+        22445000,
+        30302500,
+        40907500,
+        55222500,
+        74550000,
+        100642500,
+        135867500,
+        183422500
+      ],
+      "upgradeMaterials": {
+        "copperIngot": 10,
+        "wire": 10
+      },
+      "incomeCosts": [
+        262500,
+        355000,
+        480000,
+        647500,
+        872500,
+        1177500,
+        1590000,
+        2147500,
+        2897500,
+        3910000
+      ],
+      "managerCosts": [
+        95000,
+        162500,
+        275000
+      ],
+      "legacyCost": 700
+    },
+    "ironSmelter": {
+      "name": "철 제련소",
+      "cost": 1250000,
+      "materials": {
+        "stone": 20,
+        "wire": 5
+      },
+      "tier": 3,
+      "cycle": 5,
+      "input": {
+        "iron": 2,
+        "coal": 1
+      },
+      "output": {
+        "ironIngot": 1
+      },
+      "power": 2,
+      "icon": "smelter",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        437500,
+        592500,
+        797500,
+        1077500,
+        1455000,
+        1962500,
+        2650000,
+        3577500,
+        4827500,
+        6517500,
+        8797500,
+        11877500,
+        16032500,
+        21645000,
+        29220000,
+        39445000,
+        53250000,
+        71887500,
+        97050000,
+        131015000
+      ],
+      "upgradeMaterials": {
+        "stone": 20,
+        "wire": 5
+      },
+      "incomeCosts": [
+        187500,
+        255000,
+        342500,
+        462500,
+        625000,
+        842500,
+        1137500,
+        1532500,
+        2070000,
+        2795000
+      ],
+      "managerCosts": [
+        95000,
+        162500,
+        275000
+      ],
+      "legacyCost": 500
+    },
+    "partsFactory": {
+      "name": "기계부품 공장",
+      "cost": 20000000,
+      "materials": {
+        "ironIngot": 10,
+        "wire": 10
+      },
+      "tier": 3,
+      "cycle": 6,
+      "input": {
+        "ironIngot": 2,
+        "plank": 2
+      },
+      "output": {
+        "machinePart": 1
+      },
+      "power": 3,
+      "icon": "factory",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        7000000,
+        9450000,
+        12775000,
+        17225000,
+        23275000,
+        31400000,
+        42375000,
+        57225000,
+        77250000,
+        104275000,
+        140750000,
+        190025000,
+        256525000,
+        346300000,
+        467500000,
+        631125000,
+        852000000,
+        1150200000,
+        1552775000,
+        2096250000
+      ],
+      "upgradeMaterials": {
+        "ironIngot": 10,
+        "wire": 10
+      },
+      "incomeCosts": [
+        3000000,
+        4050000,
+        5475000,
+        7400000,
+        9975000,
+        13475000,
+        18175000,
+        24525000,
+        33100000,
+        44700000
+      ],
+      "managerCosts": [
+        950000,
+        1625000,
+        2750000
+      ],
+      "legacyCost": 800
+    },
+    "structureFactory": {
+      "name": "구조재 공장",
+      "cost": 25000000,
+      "materials": {
+        "machinePart": 5,
+        "plank": 20
+      },
+      "tier": 4,
+      "cycle": 6,
+      "input": {
+        "ironIngot": 2,
+        "stone": 3,
+        "plank": 2
+      },
+      "output": {
+        "structure": 1
+      },
+      "power": 3,
+      "icon": "factory",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        8750000,
+        11825000,
+        15950000,
+        21550000,
+        29075000,
+        39250000,
+        52975000,
+        71525000,
+        96550000,
+        130325000,
+        175950000,
+        237525000,
+        320650000,
+        432875000,
+        584375000,
+        788900000,
+        1065000000,
+        1437750000,
+        1940975000,
+        2620300000
+      ],
+      "upgradeMaterials": {
+        "machinePart": 5,
+        "plank": 20
+      },
+      "incomeCosts": [
+        3750000,
+        5075000,
+        6850000,
+        9250000,
+        12475000,
+        16825000,
+        22725000,
+        30650000,
+        41375000,
+        55875000
+      ],
+      "managerCosts": [
+        950000,
+        1625000,
+        2750000
+      ],
+      "legacyCost": 1000
+    },
+    "electronicsFactory": {
+      "name": "전자부품 공장",
+      "cost": 400000000,
+      "materials": {
+        "structure": 10,
+        "wire": 20
+      },
+      "tier": 5,
+      "cycle": 7,
+      "input": {
+        "wire": 3,
+        "copperIngot": 1,
+        "plank": 1
+      },
+      "output": {
+        "electronics": 1
+      },
+      "power": 4,
+      "icon": "chip",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        140000000,
+        189000000,
+        255250000,
+        344500000,
+        465250000,
+        628000000,
+        847500000,
+        1144250000,
+        1544750000,
+        2085250000,
+        2815000000,
+        3800250000,
+        5130250000,
+        6926000000,
+        9350000000,
+        12622250000,
+        17040000000,
+        23004000000,
+        31055500000,
+        41924750000
+      ],
+      "upgradeMaterials": {
+        "structure": 10,
+        "wire": 20
+      },
+      "incomeCosts": [
+        60000000,
+        81000000,
+        109500000,
+        147750000,
+        199500000,
+        269250000,
+        363250000,
+        490500000,
+        662000000,
+        893750000
+      ],
+      "managerCosts": [
+        9500000,
+        16250000,
+        27500000
+      ],
+      "legacyCost": 1600
+    },
+    "precisionFactory": {
+      "name": "정밀부품 공장",
+      "cost": 450000000,
+      "materials": {
+        "machinePart": 10,
+        "structure": 10
+      },
+      "tier": 5,
+      "cycle": 8,
+      "input": {
+        "machinePart": 2,
+        "copperIngot": 1
+      },
+      "output": {
+        "precision": 1
+      },
+      "power": 4,
+      "icon": "factory",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        157500000,
+        212750000,
+        287250000,
+        387750000,
+        523250000,
+        706250000,
+        953500000,
+        1287250000,
+        1737750000,
+        2346000000,
+        3167000000,
+        4275250000,
+        5771500000,
+        7791500000,
+        10518500000,
+        14200000000,
+        19170000000,
+        25879500000,
+        34937250000,
+        47165500000
+      ],
+      "upgradeMaterials": {
+        "machinePart": 10,
+        "structure": 10
+      },
+      "incomeCosts": [
+        67500000,
+        91250000,
+        123250000,
+        166250000,
+        224250000,
+        302750000,
+        408750000,
+        551750000,
+        744750000,
+        1005500000
+      ],
+      "managerCosts": [
+        9500000,
+        16250000,
+        27500000
+      ],
+      "legacyCost": 1800
+    },
+    "refinery": {
+      "name": "연료 정제소",
+      "cost": 375000000,
+      "materials": {
+        "structure": 10,
+        "copperIngot": 10
+      },
+      "tier": 5,
+      "cycle": 7,
+      "input": {
+        "coal": 3,
+        "wire": 1
+      },
+      "output": {
+        "fuel": 1
+      },
+      "power": 4,
+      "icon": "fuel",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        131250000,
+        177250000,
+        239250000,
+        323000000,
+        436000000,
+        588750000,
+        794750000,
+        1072750000,
+        1448250000,
+        1955000000,
+        2639000000,
+        3562750000,
+        4809750000,
+        6493000000,
+        8765500000,
+        11833500000,
+        15975000000,
+        21566250000,
+        29114500000,
+        39304500000
+      ],
+      "upgradeMaterials": {
+        "structure": 10,
+        "copperIngot": 10
+      },
+      "incomeCosts": [
+        56250000,
+        76000000,
+        102750000,
+        138500000,
+        187000000,
+        252250000,
+        340750000,
+        459750000,
+        620750000,
+        838000000
+      ],
+      "managerCosts": [
+        9500000,
+        16250000,
+        27500000
+      ],
+      "legacyCost": 1500
+    },
+    "cabin": {
+      "name": "나무꾼 휴게소",
+      "cost": 2000,
+      "materials": {},
+      "tier": 0,
+      "cycle": 0,
+      "input": {},
+      "output": {},
+      "power": 0,
+      "icon": "house",
+      "maxLevel": 1,
+      "upgradeCosts": [
+        700,
+        950,
+        1300,
+        1725,
+        2350,
+        3150,
+        4250,
+        5725,
+        7725,
+        10450,
+        14075,
+        19025,
+        25675,
+        34650,
+        46750,
+        63125,
+        85200,
+        115025,
+        155300,
+        209625
+      ],
+      "upgradeMaterials": {},
+      "incomeCosts": [
+        300,
+        425,
+        550,
+        750,
+        1000,
+        1350,
+        1825,
+        2475,
+        3325,
+        4475
+      ],
+      "managerCosts": [
+        950,
+        1625,
+        2750
+      ],
+      "legacyCost": 80
+    },
+    "cityWorkshop": {
+      "name": "도시 공방",
+      "cost": 1000000,
+      "materials": {},
+      "tier": 2,
+      "cycle": 0,
+      "input": {},
+      "output": {},
+      "power": 0,
+      "icon": "house",
+      "maxLevel": 1,
+      "upgradeCosts": [
+        350000,
+        472500,
+        640000,
+        862500,
+        1165000,
+        1570000,
+        2120000,
+        2862500,
+        3862500,
+        5215000,
+        7037500,
+        9502500,
+        12827500,
+        17315000,
+        23375000,
+        31557500,
+        42600000,
+        57510000,
+        77640000,
+        104812500
+      ],
+      "upgradeMaterials": {},
+      "incomeCosts": [
+        150000,
+        202500,
+        275000,
+        370000,
+        500000,
+        675000,
+        910000,
+        1227500,
+        1655000,
+        2235000
+      ],
+      "managerCosts": [
+        95000,
+        162500,
+        275000
+      ],
+      "legacyCost": 400
+    },
+    "dispatchOffice": {
+      "name": "운송 사무소",
+      "cost": 30000000,
+      "materials": {},
+      "tier": 4,
+      "cycle": 0,
+      "input": {},
+      "output": {},
+      "power": 0,
+      "icon": "house",
+      "maxLevel": 1,
+      "upgradeCosts": [
+        10500000,
+        14175000,
+        19150000,
+        25850000,
+        34900000,
+        47100000,
+        63575000,
+        85825000,
+        115850000,
+        156400000,
+        211125000,
+        285025000,
+        384775000,
+        519450000,
+        701250000,
+        946675000,
+        1278000000,
+        1725300000,
+        2329150000,
+        3144375000
+      ],
+      "upgradeMaterials": {},
+      "incomeCosts": [
+        4500000,
+        6100000,
+        8225000,
+        11075000,
+        14950000,
+        20200000,
+        27250000,
+        36775000,
+        49650000,
+        67025000
+      ],
+      "managerCosts": [
+        950000,
+        1625000,
+        2750000
+      ],
+      "legacyCost": 1200
+    },
+    "launchpad": {
+      "name": "로켓 발사대",
+      "cost": 7500000000,
+      "materials": {
+        "structure": 20,
+        "wire": 20
+      },
+      "tier": 6,
+      "cycle": 0,
+      "input": {},
+      "output": {},
+      "power": 0,
+      "icon": "rocket",
+      "maxLevel": 20,
+      "upgradeCosts": [
+        2625000000,
+        3545000000,
+        4785000000,
+        6460000000,
+        8720000000,
+        11772500000,
+        15892500000,
+        21452500000,
+        28962500000,
+        39097500000,
+        52780000000,
+        71255000000,
+        96192500000,
+        129860000000,
+        175310000000,
+        236667500000,
+        319500000000,
+        431325000000,
+        582287500000,
+        786090000000
+      ],
+      "upgradeMaterials": {
+        "structure": 20,
+        "wire": 20
+      },
+      "incomeCosts": [
+        1125000000,
+        1520000000,
+        2052500000,
+        2770000000,
+        3737500000,
+        5045000000,
+        6812500000,
+        9195000000,
+        12412500000,
+        16757500000
+      ],
+      "managerCosts": [
+        95000000,
+        162500000,
+        275000000
+      ],
+      "legacyCost": 3000
+    }
+  },
+  "resources": {
+    "log": {
+      "name": "통나무",
+      "price": 50,
+      "color": "#bb8b55",
+      "legacyPrice": 2
+    },
+    "plank": {
+      "name": "판자",
+      "price": 100,
+      "color": "#e2b879",
+      "legacyPrice": 4
+    },
+    "stone": {
+      "name": "돌",
+      "price": 500,
+      "color": "#9aa7b4",
+      "legacyPrice": 2
+    },
+    "coal": {
+      "name": "석탄",
+      "price": 750,
+      "color": "#647186",
+      "legacyPrice": 3
+    },
+    "copper": {
+      "name": "구리 광석",
+      "price": 1250,
+      "color": "#de9471",
+      "legacyPrice": 5
+    },
+    "iron": {
+      "name": "철 광석",
+      "price": 125000,
+      "color": "#bcc6d4",
+      "legacyPrice": 5
+    },
+    "copperIngot": {
+      "name": "구리괴",
+      "price": 40000,
+      "color": "#ec986c",
+      "legacyPrice": 16
+    },
+    "ironIngot": {
+      "name": "철괴",
+      "price": 400000,
+      "color": "#c8dbdf",
+      "legacyPrice": 16
+    },
+    "wire": {
+      "name": "전선",
+      "price": 30000,
+      "color": "#e9c568",
+      "legacyPrice": 12
+    },
+    "machinePart": {
+      "name": "기계부품",
+      "price": 1375000,
+      "color": "#96bcce",
+      "legacyPrice": 55
+    },
+    "structure": {
+      "name": "구조재",
+      "price": 16250000,
+      "color": "#a3b9b0",
+      "legacyPrice": 65
+    },
+    "electronics": {
+      "name": "전자부품",
+      "price": 225000000,
+      "color": "#6cd2bc",
+      "legacyPrice": 90
+    },
+    "precision": {
+      "name": "정밀부품",
+      "price": 375000000,
+      "color": "#a6a6ee",
+      "legacyPrice": 150
+    },
+    "fuel": {
+      "name": "로켓 연료",
+      "price": 250000000,
+      "color": "#eead66",
+      "legacyPrice": 100
+    }
+  },
+  "districts": {
+    "forest": {
+      "name": "산림지대",
+      "x": 0,
+      "y": 0,
+      "tier": 0,
+      "cost": 0,
+      "materials": {},
+      "expand": 15000
+    },
+    "mines": {
+      "name": "광산지대",
+      "x": 6,
+      "y": 0,
+      "tier": 0,
+      "cost": 6000,
+      "materials": {
+        "plank": 10
+      },
+      "expand": 30000
+    },
+    "industrial": {
+      "name": "산업지대",
+      "x": 12,
+      "y": 0,
+      "tier": 2,
+      "cost": 2250000,
+      "materials": {
+        "wire": 10
+      },
+      "expand": 5000000
+    },
+    "logistics": {
+      "name": "물류지대",
+      "x": 0,
+      "y": 6,
+      "tier": 3,
+      "cost": 5500000,
+      "materials": {
+        "machinePart": 10
+      },
+      "expand": 10000000
+    },
+    "advanced": {
+      "name": "첨단 공장",
+      "x": 6,
+      "y": 6,
+      "tier": 4,
+      "cost": 162500000,
+      "materials": {
+        "structure": 20
+      },
+      "expand": 200000000
+    },
+    "launch": {
+      "name": "발사장",
+      "x": 12,
+      "y": 6,
+      "tier": 5,
+      "cost": 4500000000,
+      "materials": {
+        "electronics": 20
+      },
+      "expand": 3000000000
+    }
+  },
+  "stages": [
+    "forestry",
+    "mining",
+    "smelting",
+    "power",
+    "automation",
+    "advanced",
+    "space"
+  ],
+  "stageNames": [
+    "산림 산업",
+    "광업",
+    "제련 산업",
+    "전력망",
+    "공장 자동화",
+    "첨단 산업",
+    "우주 산업"
+  ],
+  "rocket": {
+    "structure": 120,
+    "precision": 60,
+    "electronics": 80,
+    "fuel": 100,
+    "plank": 150,
+    "wire": 150
+  },
+  "projects": {
+    "cabin": {
+      "materials": {
+        "plank": 24
+      },
+      "seconds": 15,
+      "effect": "운영 수입 +25%"
+    },
+    "cityWorkshop": {
+      "materials": {
+        "plank": 36,
+        "copperIngot": 8,
+        "wire": 12
+      },
+      "seconds": 30,
+      "effect": "출하 보상 +10%"
+    },
+    "dispatchOffice": {
+      "materials": {
+        "machinePart": 10,
+        "wire": 20,
+        "plank": 40
+      },
+      "seconds": 45,
+      "effect": "상차 속도 +20% · 주문 간격 16초"
+    }
+  },
+  "research": {
+    "cash": 60000,
+    "materials": {
+      "stone": 10,
+      "coal": 5
+    }
+  },
+  "initial": {
+    "version": 1,
+    "cash": 500,
+    "bag": {},
+    "entities": {
+      "e1": {
+        "id": "e1",
+        "kind": "forest",
+        "x": 0,
+        "y": 0,
+        "level": 1,
+        "direction": 1,
+        "paused": false,
+        "inputs": {},
+        "outputs": {},
+        "queue": [],
+        "job": null,
+        "flowCredit": 0,
+        "investedCash": 0,
+        "saleCursor": 0,
+        "intakeCursors": {},
+        "saleFilters": {
+          "log": true,
+          "plank": true,
+          "stone": true,
+          "coal": true,
+          "copper": true,
+          "iron": true,
+          "copperIngot": true,
+          "ironIngot": true,
+          "wire": true,
+          "machinePart": true,
+          "structure": true,
+          "electronics": true,
+          "precision": true,
+          "fuel": true
+        },
+        "splitDirections": [
+          1,
+          2
+        ],
+        "splitCursor": 0,
+        "burnRemainingS": 0,
+        "automatic": true,
+        "mineResourceId": "copper",
+        "factory": true,
+        "managerLevel": 0
+      },
+      "e2": {
+        "id": "e2",
+        "kind": "sawmill",
+        "x": 1,
+        "y": 0,
+        "level": 1,
+        "direction": 1,
+        "paused": false,
+        "inputs": {},
+        "outputs": {},
+        "queue": [],
+        "job": null,
+        "flowCredit": 0,
+        "investedCash": 0,
+        "saleCursor": 0,
+        "intakeCursors": {},
+        "saleFilters": {
+          "log": true,
+          "plank": true,
+          "stone": true,
+          "coal": true,
+          "copper": true,
+          "iron": true,
+          "copperIngot": true,
+          "ironIngot": true,
+          "wire": true,
+          "machinePart": true,
+          "structure": true,
+          "electronics": true,
+          "precision": true,
+          "fuel": true
+        },
+        "splitDirections": [
+          1,
+          2
+        ],
+        "splitCursor": 0,
+        "burnRemainingS": 0,
+        "automatic": true,
+        "mineResourceId": "copper",
+        "factory": true,
+        "managerLevel": 0
+      },
+      "e3": {
+        "id": "e3",
+        "kind": "warehouse",
+        "x": 2,
+        "y": 0,
+        "level": 1,
+        "direction": 1,
+        "paused": false,
+        "inputs": {},
+        "outputs": {},
+        "queue": [],
+        "job": null,
+        "flowCredit": 0,
+        "investedCash": 0,
+        "saleCursor": 0,
+        "intakeCursors": {},
+        "saleFilters": {
+          "log": true,
+          "plank": true,
+          "stone": true,
+          "coal": true,
+          "copper": true,
+          "iron": true,
+          "copperIngot": true,
+          "ironIngot": true,
+          "wire": true,
+          "machinePart": true,
+          "structure": true,
+          "electronics": true,
+          "precision": true,
+          "fuel": true
+        },
+        "splitDirections": [
+          1,
+          2
+        ],
+        "splitCursor": 0,
+        "burnRemainingS": 0,
+        "automatic": true,
+        "mineResourceId": "copper",
+        "factory": true,
+        "managerLevel": 0,
+        "dispatchResource": null
+      }
+    },
+    "districts": {
+      "forest": {
+        "size": 3
+      },
+      "mines": {
+        "size": 0
+      },
+      "industrial": {
+        "size": 0
+      },
+      "logistics": {
+        "size": 0
+      },
+      "advanced": {
+        "size": 0
+      },
+      "launch": {
+        "size": 0
+      }
+    },
+    "corridors": [],
+    "stage": "forestry",
+    "unlocks": {
+      "offline": false
+    },
+    "totals": {
+      "produced": {},
+      "sold": {},
+      "earned": 0
+    },
+    "records": [
+      {
+        "type": "first_sawmill",
+        "atS": 0
+      },
+      {
+        "type": "first_warehouse",
+        "atS": 0
+      },
+      {
+        "type": "first_automation",
+        "atS": 0
+      }
+    ],
+    "rocket": {
+      "delivered": {},
+      "launched": 0
+    },
+    "clock": {
+      "tickIndex": 0,
+      "elapsedS": 0,
+      "carryS": 0,
+      "lastChopAtMs": null
+    },
+    "recentSales": [],
+    "nextId": 4,
+    "createdAtMs": 0,
+    "power": {
+      "generation": 0,
+      "demand": 0,
+      "ratio": 1
+    },
+    "factory": {
+      "currencyVersion": 2,
+      "reserves": {
+        "log": 20,
+        "plank": 20,
+        "stone": 20,
+        "coal": 20,
+        "copper": 20,
+        "iron": 20,
+        "copperIngot": 20,
+        "ironIngot": 20,
+        "wire": 20,
+        "machinePart": 20,
+        "structure": 20,
+        "electronics": 20,
+        "precision": 20,
+        "fuel": 20
+      },
+      "saleCredit": 0,
+      "saleCursor": 0,
+      "dispatchCursors": {}
+    }
+  }
+}

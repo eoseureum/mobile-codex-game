@@ -1,0 +1,4 @@
+.godot/
+.runtime/
+build/
+*.tmp
