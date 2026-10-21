@@ -133,7 +133,25 @@ static func image(kind:String,frame=0) -> Image:
 			for y in [8,15,22]:panel(im,4,y,24,5,"d9b67b");rect(im,9,y+2,12,1,"ad8054")
 		else:
 			var colors={"stone":"a8b1a2","coal":"56615b","copper":"d89b65","iron":"b9cac4","wire":"d9ad64","copperIngot":"c88652","ironIngot":"b8c5bd","machinePart":"859e98","structure":"9bae8d","electronics":"86b5b3","precision":"afa1c1","fuel":"e0c17b"}
-			panel(im,7,9,19,17,colors.get(r,"a8b1a2"));rect(im,9,11,13,3,"e0d7ac");rect(im,10,22,13,2,INK)
+			var c=colors.get(r,"a8b1a2")
+			if r in ["stone","coal","copper","iron"]:
+				panel(im,5,16,12,11,c);panel(im,12,7,13,14,c);panel(im,20,19,8,9,c)
+				rect(im,14,9,7,2,"dbe0bd" if r!="coal" else "89938a");rect(im,7,18,5,2,"dbe0bd" if r!="coal" else "89938a")
+			elif r in ["copperIngot","ironIngot"]:
+				panel(im,4,14,24,11,c);panel(im,9,8,15,9,c);line(im,Vector2i(5,14),Vector2i(10,8),INK);rect(im,11,10,10,2,"e8d5ad");rect(im,7,21,18,2,"78665a")
+			elif r=="wire":
+				panel(im,5,6,23,23,c);panel(im,9,10,15,15,"b58143");panel(im,13,14,7,7,"00000000");rect(im,24,24,4,6,c)
+			elif r=="machinePart":gear(im,16,16,2,"9caeaa");rect(im,7,24,18,3,INK)
+			elif r=="structure":
+				panel(im,4,5,24,6,c);panel(im,12,10,8,13,c);panel(im,4,22,24,6,c);rect(im,14,12,2,9,"d3dfc3")
+			elif r=="electronics":
+				panel(im,4,5,24,23,"6e9f88");panel(im,10,11,12,11,"465c5a")
+				for at in [7,13,20,25]:rect(im,at,3,2,4,"dfbd73");rect(im,at,27,2,3,"dfbd73")
+				rect(im,6,8,10,1,"c8d3a0");rect(im,24,13,1,10,"c8d3a0")
+			elif r=="precision":gear(im,16,17,1,"c4bdd8");panel(im,14,4,5,13,"dce0d0");rect(im,15,24,3,5,INK)
+			elif r=="fuel":
+				panel(im,8,4,17,26,"756956");rect(im,9,8,15,5,c);rect(im,9,22,15,4,c);rect(im,11,5,3,22,"e4cb87")
+			else:panel(im,7,9,19,17,c)
 		return im
 	if kind=="tree":tree(im,7,2);return im
 	if kind.begins_with("ore_"):

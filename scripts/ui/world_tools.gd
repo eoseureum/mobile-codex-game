@@ -59,8 +59,8 @@ func panel():
 			ui._button(row,"정리",func():clearing=true;ui._rebuild())
 		var q=direct if clearing else avoiding;_preview(q)
 		if q.ok:
-			ui._label(ui.body,"컨베이어 %d칸"%q.cells.size());_recovery(q)
-			var pay=_button(("정리하고 연결" if not q.clear.is_empty() else "연결")+" · ₩ "+game.money(q.cash),commit)
+			ui._label(ui.body,("합류 · " if q.get("junction",false) else "")+"컨베이어 %d칸"%q.cells.size());_recovery(q)
+			var pay=_button(("정리하고 연결" if not q.clear.is_empty() else "합류" if q.get("junction",false) else "연결")+" · ₩ "+game.money(q.cash),commit)
 			ui.bindings.append(func():if is_instance_valid(pay):pay.disabled=game.state.cash<q.cash)
 		else:ui._label(ui.body,ui._error(q.code))
 	var row=ui._row();ui._spacer(row)

@@ -17,6 +17,7 @@ func run():
 	var market=ui.game.create_entity("market",82,80)
 	var rocket=ui.game.create_entity("launchpad",84,80)
 	var project=ui.game.create_entity("cabin",86,80,{"project":{"materials":{},"remainingS":ui.game.data.projects.cabin.seconds,"complete":false}})
+	var belt=ui.game.create_entity("belt",88,80)
 	for screen in [Vector2(390,844),Vector2(320,568),Vector2(960,540),Vector2(844,320)]:
 		ui.size=screen;ui._layout()
 		for tab in ["build","inventory","industry","records","settings","trade","logistics","policies","projects"]:
@@ -26,10 +27,16 @@ func run():
 			await process_frame;await process_frame;await process_frame
 			check(ui.body.get_combined_minimum_size().y<=ui.scroll.size.y+2,"page fits vertically: "+tab+" "+str(screen))
 			check(ui.body.get_combined_minimum_size().x<=ui.scroll.size.x+2,"page fits horizontally: "+tab)
-		for id in ["e1",depot.id,machine.id,market.id,rocket.id,project.id]:
+		for id in ["e1",depot.id,machine.id,market.id,rocket.id,project.id,belt.id]:
 			for page in ["summary","improve","flow","stock"]:
 				ui.selected=id;ui.tab="map";ui.inspect_details=page!="summary";ui.inspector_page=page;ui.sheet_fraction=0.42;ui._rebuild();ui._layout()
 				await process_frame;await process_frame;await process_frame
 				check(ui.body.get_combined_minimum_size().y<=ui.scroll.size.y+2,"facility page fits without scrolling: "+page+" "+str(screen))
 				check(ui.body.get_combined_minimum_size().x<=ui.scroll.size.x+2,"facility page fits horizontally: "+page)
+	ui.selected=belt.id;ui.inspect_details=false;ui.tab="map";ui._rebuild()
+	var connect_ready=false
+	for row in ui.body.get_children():
+		for node in row.get_children():
+			if node is Button and node.text=="연결":connect_ready=not node.disabled
+	check(connect_ready,"selected conveyor can start another connection directly")
 	print("COMPACT_CARDS: %d checks, %d failures"%[checks,failures]);quit(1 if failures else 0)

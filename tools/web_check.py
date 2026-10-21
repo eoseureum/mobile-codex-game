@@ -4,6 +4,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 root=Path(__file__).resolve().parents[1]
 subprocess.run([os.environ.get('GODOT_BIN','godot'),'--headless','--path',str(root),'--script','tools/prepare_opening_check.gd'],check=True)
+subprocess.run([os.environ.get('GODOT_BIN','godot'),'--headless','--path',str(root),'--script','tools/prepare_conveyor_check.gd'],check=True)
 class Handler(http.server.SimpleHTTPRequestHandler):
  def __init__(self,*a,**kw):super().__init__(*a,directory=str(root/'build/web'),**kw)
  def log_message(self,*a):pass
@@ -79,6 +80,22 @@ with sync_playwright() as p:
  assert len(shipping['entities'])==5 and any(e['kind']=='warehouse' and e['x']==66 for e in shipping['entities'].values()),shipping
  assert shipping['cash']==shipping['totals']['earned']-2150
  print('PASS contextual shipping expansion completes the paid factory line',flush=True)
+ import_paid_fixture('conveyor-flow.json')
+ page.touchscreen.tap(196,397);page.wait_for_timeout(400)
+ page.screenshot(path='/tmp/rust-conveyor-flow.png')
+ moving=page.screenshot(clip={'x':95,'y':315,'width':220,'height':115})
+ page.wait_for_timeout(450)
+ assert moving!=page.screenshot(clip={'x':95,'y':315,'width':220,'height':115}), 'resource sprites must visibly move along a live merged line'
+ merged=backup()['state']
+ destination=next(e for e in merged['entities'].values() if e['x']==68 and e['y']==66)
+ assert destination['inventory'].get('log',0)>0 and destination['inventory'].get('coal',0)>0,destination
+ import_paid_fixture('conveyor-jam.json')
+ page.touchscreen.tap(196,397);page.wait_for_timeout(400)
+ page.screenshot(path='/tmp/rust-conveyor-jam.png')
+ jammed=backup()['state']
+ loaded=[e for e in jammed['entities'].values() if e['kind']=='belt' and e['y']==66]
+ assert any(e['queue'] for e in loaded) and all(len(e['queue'])<=4 for e in loaded),loaded
+ print('PASS mixed-resource conveyor merge, visible item motion and blocked cargo',flush=True)
  errors += [m for m in messages if 'SCRIPT ERROR' in m or m.startswith('ERROR:')]
  print('CONSOLE',messages[-30:])
  assert not errors,errors

@@ -70,5 +70,7 @@ static func show(ui,e):
 		ui.bindings.append(func():if is_instance_valid(savings):savings.value=100.0*game.state.cash/maxf(1,suggestion.cash))
 	else:
 		var connect=ui._button(row,"연결",func():ui.world_tools.begin("route");ui.world_tools.origin={"x":int(e.x),"y":int(e.y)};ui.map.work_origin=Vector2i(int(e.x),int(e.y));ui._layout_title())
-		connect.disabled=not game.world_mode() or game.recipe(e).output.is_empty()
-		ui._bind_label(ui.body,func():return game.status(e))
+		connect.disabled=not game.world_mode() or (game.recipe(e).output.is_empty() and not game.transport(e))
+		if game.transport(e):
+			ui._bind_label(ui.body,func():return "%.1f개 / 초"%(1.5 if e.level==1 else 3.0))
+		else:ui._bind_label(ui.body,func():return game.status(e))

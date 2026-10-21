@@ -46,6 +46,7 @@ jobs:
         run: godot --headless --path . --script tests/test_ui_layout.gd
       - name: Check resource scatter, income averaging and compact cards
         run: |
+          godot --headless --path . --script tests/test_conveyors.gd
           godot --headless --path . --script tests/test_scatter.gd
           godot --headless --path . --script tests/test_income_meter.gd
           godot --headless --path . --script tests/test_compact_cards.gd

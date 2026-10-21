@@ -122,12 +122,15 @@ static func quote_path(game,path:Array,clear:bool) -> Dictionary:
 			if not clear:return failure("BLOCKED")
 			terrain.append(p)
 		cells.append({"x":p.x,"y":p.y,"direction":direction(p,path[i+1]) if i<path.size()-1 else direction(path[i-1],p)})
-	if cells.is_empty():return failure("EMPTY")
+	if cells.is_empty():
+		var source=game.at(path[0].x,path[0].y)
+		if source.is_empty() or not game.transport(source) or int(source.direction)==direction(path[0],path[1]):return failure("EMPTY")
 	if cells.size()+game.state.entities.size()>MAX_ENTITIES:return failure("TOO_LARGE")
 	var result=clearance(game,terrain)
 	if not result.ok:return result
 	result.cells=cells;result.path=path;result.cash+=cells.size()*int(game.data.facilities.belt.cost)
 	result.sourceDirection=direction(path[0],path[1])
+	result.junction=game.transport(game.at(path[-1].x,path[-1].y)) if not game.at(path[-1].x,path[-1].y).is_empty() else false
 	return result
 static func route_quote(game,from,to,clear=false) -> Dictionary:
 	if not game.world_mode() or not valid_point(from) or not valid_point(to) or not clear is bool:return failure("INVALID")
