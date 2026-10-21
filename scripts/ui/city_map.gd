@@ -2,6 +2,7 @@ extends Control
 signal tile_pressed(tile: Vector2i)
 const World=preload("res://scripts/core/world_map.gd")
 const Art=preload("res://scripts/ui/pixel_art.gd")
+const Motion=preload("res://scripts/ui/facility_motion.gd")
 var game
 var zoom=1.0
 var tile_size=96.0
@@ -103,25 +104,19 @@ func _draw():
 			var variant=posmod(x*13+y*7,4)
 			_sprite("grass" if owned else "wild",r,variant)
 			if game.world_mode():
-				if occupied.has(Vector2i(x,y)):_sprite("yard",r,variant)
-				elif owned:
+				if owned and not occupied.has(Vector2i(x,y)):
 					var resource=World.resource_at(game.state.world,x,y)
 					if resource=="log":_sprite("tree",r)
 					elif not resource.is_empty():_sprite("ore_"+(resource if known[resource] else "unknown"),r)
-					elif game.state.world.cleared.has(game.key(x,y)):_sprite("yard",r,variant)
 			else:
-				if owned:
-					if occupied.has(Vector2i(x,y)):_sprite("yard",r,variant)
-				else:
+				if not owned:
 					if id=="mines":_sprite("rock",r,variant)
 					if posmod(x*17+y*31,9)==0:_sprite("tree",r.grow(-unit*0.12))
 
-	var frame=int(floor(game.state.clock.elapsedS*5))%4
 	for e in game.state.entities.values():
 		var r=tile_rect(int(e.x),int(e.y))
 		if not r.intersects(Rect2(Vector2.ZERO,size)):continue
-		var active=game.status(e) in ["가동 중","발전 중","운송 중","자동 입출고","자동 판매","운영 중","공사 중"]
-		var anim=frame if active else 0
+		var anim=Motion.frame(Motion.phase(game,e))
 		if game.transport(e):
 			draw_set_transform(r.get_center(),(int(e.direction)-1)*PI/2,Vector2.ONE*r.size.x/32)
 			_sprite(e.kind,Rect2(-Vector2.ONE*16,Vector2.ONE*32),anim)
@@ -131,8 +126,6 @@ func _draw():
 				draw_rect(Rect2(cargo,Vector2.ONE*2),Color(game.data.resources[e.queue[i]].color))
 			draw_set_transform(Vector2.ZERO,0,Vector2.ONE)
 		else:_sprite(e.kind,r,anim)
-		if not game.transport(e):
-			_sprite("cat",Rect2(r.position+r.size*Vector2(0.58,0.48),r.size*0.50),anim)
 		if e.job!=null:
 			var percent=clampf(1-e.job.remaining/game.recipe(e).cycle,0,1)
 			var p=r.size.x/32

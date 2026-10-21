@@ -26,6 +26,7 @@ Godot 4.5의 Export Templates를 설치한 뒤 프로젝트 폴더에서 실행�
 godot --headless --path . --editor --quit
 godot --headless --path . --script tests/test_runner.gd
 godot --headless --path . --script tests/test_world.gd
+godot --headless --path . --script tests/test_motion.gd
 godot --headless --path . -- --ui-check
 godot --headless --path . --script tests/test_ui_layout.gd
 mkdir -p build/web
@@ -54,6 +55,8 @@ PR마다 GitHub Actions가 실제 Godot 엔진으로 검사하고 `rust-city-web
 - `tests/reference_campaign.json`: 실제 비용을 지불하며 로켓까지 진행한 기존 웹 게임의 조작 기록. GDScript 결과와 돈·생산·판매·납품을 비교합니다.
 - `tools/web_check.py`: Web 빌드 후 Playwright와 Chromium으로 실제 Godot WASM 실행을 확인합니다.
 
-산림부터 로켓까지의 시뮬레이션은 JavaScript 래퍼 없이 GDScript로 실행됩니다. 도트 지형·시설·고양이·메뉴 아이콘은 `scripts/ui/pixel_art.gd`의 32px 원본 픽셀 작업으로 생성되며, 외부 이미지나 유료 생성 서비스를 사용하지 않습니다. 지형과 스프라이트는 최근접 필터로 표시하고 한국어 UI는 가독성을 위해 부드러운 글꼴을 사용합니다.
+산림부터 로켓까지의 시뮬레이션은 JavaScript 래퍼 없이 GDScript로 실행됩니다. 도트 지형·시설·메뉴 아이콘은 `scripts/ui/pixel_art.gd`의 32px 원본 픽셀 작업으로 생성되며, 외부 이미지나 유료 생성 서비스를 사용하지 않습니다. 지형과 스프라이트는 최근접 필터로 표시하고 한국어 UI는 가독성을 위해 부드러운 글꼴을 사용합니다.
+
+건물과 컨베이어는 잔디 위에 바로 표시합니다. 관리인 캐릭터 대신 톱날·광차·화로·릴·프레스·스캐너·펌프 등의 8프레임 동작으로 가동 상태를 보여줍니다. 생산 시설은 실제 제작 한 주기에 애니메이션 한 번을 맞추며, 속도 업그레이드와 전력 효율을 그대로 반영합니다. 재료가 없거나 정지한 시설은 가동 동작을 멈춥니다.
 
 한국어 폰트 라이선스는 `assets/fonts/OFL.txt`에 있습니다.

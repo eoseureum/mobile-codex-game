@@ -9,8 +9,8 @@ const GREEN="54794d"
 static var cache={}
 
 static func texture(kind:String,frame=0) -> ImageTexture:
-	var key=kind+str(posmod(frame,4))
-	if not cache.has(key):cache[key]=ImageTexture.create_from_image(image(kind,posmod(frame,4)))
+	var key=kind+":"+str(clampi(frame,0,8))
+	if not cache.has(key):cache[key]=ImageTexture.create_from_image(image(kind,clampi(frame,0,8)))
 	return cache[key]
 static func rect(im:Image,x:int,y:int,w:int,h:int,color:String):
 	im.fill_rect(Rect2i(x,y,w,h),Color(color))
@@ -38,45 +38,66 @@ static func tree(im:Image,x:int,y:int):
 	rect(im,x+2,y+6,14,7,GREEN);rect(im,x+4,y+13,10,4,GREEN)
 	rect(im,x+4,y+5,7,3,"a2bd6b");rect(im,x+3,y+8,4,3,"7fa357")
 	rect(im,x+11,y+9,4,5,"3e6246");rect(im,x+7,y+15,6,2,"3e6246")
-static func cat(im:Image,frame:int):
-	var y=1 if frame in [1,2] else 0
-	rect(im,11,12+y,10,10,INK);rect(im,12,13+y,8,8,"f5dfac")
-	rect(im,10,7+y,12,9,INK);rect(im,10,4+y,4,6,INK);rect(im,18,4+y,4,6,INK)
-	rect(im,11,6+y,2,4,"efc58f");rect(im,19,6+y,2,4,"efc58f")
-	rect(im,11,9+y,10,6,"fff0c8");rect(im,13,10+y,1,2,INK);rect(im,18,10+y,1,2,INK)
-	rect(im,15,13+y,2,1,"c88a73");rect(im,11,16+y,10,2,"bd6651")
-	rect(im,11,22+y,3,2,INK);rect(im,18,22+y,3,2,INK)
-	rect(im,21,19+y,3,2,"f5dfac");rect(im,23,16+y,2,4,"f5dfac")
+static func line(im:Image,a:Vector2i,b:Vector2i,color:String):
+	var steps=maxi(abs(b.x-a.x),abs(b.y-a.y))
+	for i in range(steps+1):
+		var p=Vector2(a).lerp(Vector2(b),float(i)/maxi(1,steps)).round()
+		rect(im,int(p.x),int(p.y),1,1,color)
+static func gear(im:Image,x:int,y:int,n:int,color="e3dfcb"):
+	rect(im,x-3,y-4,7,9,INK);rect(im,x-4,y-3,9,7,INK)
+	rect(im,x-3,y-3,7,7,color)
+	var tips=[Vector2i(0,-3),Vector2i(2,-2),Vector2i(3,0),Vector2i(2,2),Vector2i(0,3),Vector2i(-2,2),Vector2i(-3,0),Vector2i(-2,-2)]
+	var tip=tips[posmod(n,8)]
+	line(im,Vector2i(x,y),Vector2i(x,y)+tip,"687f78");rect(im,x-1,y-1,2,2,INK)
+	rect(im,x+tip.x,y+tip.y,1,1,"f1c66a")
 static func smoke(im:Image,x:int,frame:int):
-	var y=posmod(frame,3)
-	rect(im,x,4-y,3,3,"e9e5c5bc");rect(im,x+2,1-y,4,2,"f9edce90")
+	var n=posmod(frame-1,8);var y=n%4
+	rect(im,x+n/4,4-y,3,3,"d2ddcfaa");rect(im,x+2-n/4,1-y/2,3,2,"e4eade77")
 static func factory(im:Image,kind:String,frame:int):
+	var n=maxi(0,frame-1);var active=frame>0
+	var stroke=[0,1,2,3,4,3,2,1][n]
 	var colors={"copperSmelter":"b77350","ironSmelter":"8d9d9a","wireFactory":"c39b56","partsFactory":"7b9b9b","structureFactory":"9aaf8c","electronicsFactory":"7ba0b1","precisionFactory":"998fab","refinery":"b4a275"}
 	var c=colors.get(kind,"91a088")
 	panel(im,3,15,26,14,"c7ba91");rect(im,4,25,24,3,"9d9b7f")
 	panel(im,22,5,5,11,"877d6b");rect(im,21,5,7,2,INK)
-	if frame>0:smoke(im,23,frame)
+	if active:smoke(im,23,frame)
 	if kind in ["copperSmelter","ironSmelter"]:
 		panel(im,7,9,15,19,c);rect(im,8,13,13,2,"efd4a4")
-		panel(im,11,19,8,8,"704a40");rect(im,12,22,6,4,"d78945")
-		rect(im,13+frame%2,20,3,5,"f4ce68");rect(im,7,28,19,2,INK)
+		panel(im,11,19,8,8,"463f3b")
+		if active:
+			rect(im,12,23-stroke/2,6,3+stroke/2,"d78945")
+			rect(im,12+n%4,22-stroke/2,2,4,"f4ce68")
+			rect(im,6,17,2+stroke/2,5,"ab8564")
+		rect(im,7,28,19,2,INK)
 	elif kind=="refinery":
 		panel(im,4,8,9,21,c);panel(im,16,12,11,17,"c0c5a7")
 		rect(im,5,14,7,2,CREAM);rect(im,5,23,7,2,CREAM);rect(im,13,18,5,3,"7d887d")
 		rect(im,21,9,3,4,INK);rect(im,26,22,4,3,"be8a59")
+		panel(im,7,10,3,13,"4b645b")
+		if active:rect(im,8,12+n,1,3,"e4c875");gear(im,21,22,n,"c3c9ad")
 	else:
 		panel(im,5,10,21,6,c);rect(im,7,9,6,2,INK);rect(im,16,7,6,4,c)
 		window(im,6,18);window(im,21,18)
 		panel(im,13,19,6,10,"5c766e");rect(im,14,20,4,2,"edd397")
 		if kind=="wireFactory":
-			panel(im,13,12,8,7,"d69955");rect(im,15,13,4,5,"8f6749");rect(im,16,14,2,3,"e6c28a")
+			gear(im,17,12,n,"d69955")
+			if active:rect(im,10+n,16,5,1,"efc47d")
 		elif kind=="partsFactory":
-			rect(im,11,9,10,2,INK);rect(im,14,6,4,8,INK);rect(im,12,8,8,4,"dcc699");rect(im,15,8,2,4,"6f8c87")
+			rect(im,11,5,2,12,INK);rect(im,23,5,2,12,INK);rect(im,11,5,14,2,"6f8c87")
+			panel(im,13,7+stroke,10,4,"dcc699");rect(im,17,11+stroke,3,2,"6f8c87")
+			if active:rect(im,12+n,17,3,1,"e3dfcb")
 		elif kind=="electronicsFactory":
-			panel(im,12,7,9,8,"355b52");rect(im,14,9,5,4,"9dba73");rect(im,14,6,1,2,"d5bd7b")
+			panel(im,11,7,12,9,"355b52")
+			for x in [13,16,19]:rect(im,x,9,1,5,"9dba73")
+			if active:rect(im,12+n,8,2,7,"edce7a");rect(im,13+(n*3)%8,12,1,1,"e9f0bd")
 		elif kind=="precisionFactory":
-			panel(im,11,7,12,8,"cac9c0");rect(im,14,9,6,4,"77778f");rect(im,16,10,2,2,"dbe9d2")
-		else:rect(im,10,11,15,2,"e6d8b1");rect(im,10,14,15,1,"7c8b78")
+			panel(im,11,7,13,9,"cac9c0");gear(im,17,11,n,"9fa5b1")
+			if active:rect(im,11+stroke,15,3,2,"dcb57b")
+		else:
+			rect(im,6,5,2,13,INK);rect(im,6,5,19,2,"d1b97f")
+			var hook=10+n if active else 10
+			rect(im,hook,7,1,7,"7c8b78");rect(im,hook-2,14,5,2,"e6d8b1")
+			if active:rect(im,9+n,17,5,2,"a0b4a8")
 
 static func icon(im:Image,kind:String):
 	match kind:
@@ -105,7 +126,6 @@ static func image(kind:String,frame=0) -> Image:
 	var im=Image.create(32,32,false,Image.FORMAT_RGBA8)
 	im.fill(Color.TRANSPARENT)
 	if kind.begins_with("icon_"):icon(im,kind.trim_prefix("icon_"));return im
-	if kind=="cat":cat(im,frame);return im
 	if kind=="tree":tree(im,7,2);return im
 	if kind.begins_with("ore_"):
 		var color={"ore_stone":"bec1ac","ore_coal":"535c55","ore_copper":"d59866","ore_iron":"c9d5cd"}.get(kind,"9aa89a")
@@ -115,48 +135,66 @@ static func image(kind:String,frame=0) -> Image:
 		return im
 	if kind in ["grass","yard","wild","rock","water"]:
 		var base="96ad73" if kind=="wild" else "a7ba7c"
-		if kind=="yard":base="c8bb8b"
 		if kind=="rock":base="9da995"
 		if kind=="water":base="7eaeaa"
 		im.fill(Color(base))
 		for i in range(17):
 			var x=posmod(i*13+frame*7,31);var y=posmod(i*19+frame*11,31)
 			rect(im,x,y,2,1,"b9c88b" if i%3==0 else "90a66c")
-			if kind=="yard":rect(im,x,y,2,1,"b3aa7d" if i%2==0 else "ded09a")
 			if kind=="rock":rect(im,x,y,3,2,"b7bea8" if i%2==0 else "859584")
 			if kind=="water":rect(im,x,y,4,1,"a4cec0" if i%2==0 else "719c9b")
 		return im
 	shadow(im)
+	var n=maxi(0,frame-1);var active=frame>0
+	var stroke=[0,1,2,3,4,3,2,1][n]
 	match kind:
 		"forest":
 			tree(im,0,2);tree(im,14,0);log_pile(im,9,25)
+			panel(im,12,19,14,5,"6f8674")
+			if active:
+				rect(im,13+stroke,20,9,2,"d3dec6")
+				for x in range(14+stroke,23+stroke,2):rect(im,x,22,1,1,INK)
+				rect(im,24+n%3,23-n%3,1,1,"dec592")
 		"sawmill":
 			panel(im,3,14,26,15,"ccb28a");roof(im,1,5,30)
 			rect(im,4,22,24,3,"748d7a");log_pile(im,4,24)
 			panel(im,16,16,10,10,"d8dfcb");rect(im,19,18,4,6,"84988b")
-			if frame%2==0:rect(im,16,20,10,2,"f2e9c8")
-			else:rect(im,20,16,2,10,"f2e9c8")
-			rect(im,20,20,2,2,INK);window(im,5,16)
+			gear(im,21,21,n,"d8dfcb");window(im,5,16)
+			if active:
+				rect(im,4+n,24,6,3,"b88a55");rect(im,5+n,24,2,2,"efd5a0")
+				if n>=4:rect(im,25+n%3,27-n%2,1,1,"e3c98d")
 		"warehouse","market":
 			panel(im,3,13,26,16,"d6bc8e");roof(im,1,4,30,"a86752")
 			panel(im,12,18,10,11,"765f49");rect(im,14,19,6,9,"b49465");rect(im,17,19,1,9,"e7c48b")
 			window(im,5,18);panel(im,24,23,7,6,"b78e55")
-			if kind=="market":rect(im,2,15,28,3,"ebcf85");rect(im,7,15,4,3,ROOF);rect(im,19,15,4,3,ROOF)
+			if kind=="market":
+				rect(im,2,15,28,3,"ebcf85");rect(im,7,15,4,3,ROOF);rect(im,19,15,4,3,ROOF)
+				if active:panel(im,5+n*2,24-stroke/2,4,4,"d8ad59")
+			elif active:
+				rect(im,14,19,6,8,"475a4d");rect(im,14,19,6,maxi(1,7-stroke),"b49465")
+				panel(im,13+n/2,24,5,4,"b78e55")
 		"belt","splitter":
 			panel(im,0,11,32,13,"637b72");rect(im,0,14,32,7,"8b9f83")
-			for x in range(-4,33,6):rect(im,x+frame,14,2,7,"526a61")
+			for x in range(-8,33,8):rect(im,x+(n if active else 0),14,2,7,"526a61")
 			rect(im,0,12,32,2,"c0bc91");rect(im,0,22,32,1,"4f6258")
-			if kind=="splitter":panel(im,10,6,12,20,"d2b774");rect(im,15,8,2,15,INK);rect(im,15,12,6,2,INK)
+			if kind=="splitter":
+				panel(im,10,6,12,20,"d2b774");gear(im,16,16,n,"d2b774")
 		"mine":
 			rect(im,9,4,13,3,INK);rect(im,5,7,22,5,INK);rect(im,2,12,28,16,INK)
 			rect(im,10,5,11,3,"abb5a6");rect(im,6,8,20,6,"abb5a6");rect(im,3,14,26,13,"8a9a91")
 			rect(im,19,9,4,3,"cbb38b");rect(im,5,18,4,3,"b5bda7")
 			panel(im,10,15,15,14,"3e4d47");rect(im,9,14,17,3,"bb955f");rect(im,10,17,3,12,"d4b078");rect(im,23,17,2,12,"bb955f")
-			rect(im,14,26,8,2,"c5b38c");rect(im,15,22,1,8,"786a55");rect(im,21,22,1,8,"786a55")
+			rect(im,12,28,14,1,"c5b38c");rect(im,12,30,14,1,"786a55")
+			var cart=13+stroke if active else 13
+			panel(im,cart,23,8,5,"697d76");rect(im,cart+1,22,5,2,"c99b6c")
+			rect(im,cart+1,28,2,2,INK);rect(im,cart+5,28,2,2,INK)
+			if active:rect(im,14+n,20,1,1,"d2c5a1")
 		"generator":
-			panel(im,4,14,24,15,"c4b77d");panel(im,22,7,5,10,"867c68");smoke(im,23,frame)
+			panel(im,4,14,24,15,"c4b77d");panel(im,22,7,5,10,"867c68")
+			if active:smoke(im,23,frame)
 			panel(im,7,9,15,19,"7a9587");rect(im,8,13,13,2,"b7c6a2")
-			panel(im,10,19,9,8,"4e6259");rect(im,12,21,5,4,"dca85b");rect(im,14,19,2,4,"f1d485")
+			gear(im,15,22,n,"a3b7a3")
+			if active:rect(im,7+n,16,2,1,"f1d485")
 			for x in [6,24]:rect(im,x,27,3,3,INK)
 		"cabin","cityWorkshop","dispatchOffice":
 			panel(im,4,14,24,15,"dec99a");roof(im,2,5,28,"7b9270" if kind=="cityWorkshop" else ROOF)
@@ -165,11 +203,17 @@ static func image(kind:String,frame=0) -> Image:
 			if kind=="cabin":rect(im,5,25,6,2,"7f9b6b");rect(im,6,24,4,1,"dbbb70")
 			if kind=="cityWorkshop":panel(im,11,11,10,5,"b9bf9b");rect(im,15,11,2,5,INK)
 			if kind=="dispatchOffice":rect(im,26,7,1,15,INK);rect(im,27,7,5,4,"e3b65e")
+			if active:
+				if kind=="cityWorkshop":gear(im,16,13,n,"b9bf9b")
+				elif kind=="dispatchOffice":rect(im,27,7+n%3,5,3,"f2d591");rect(im,5+n*2,26,3,2,"ddc07e")
+				else:rect(im,8+n,11+stroke,5,2,"cfb07c");rect(im,10+n,13+stroke,1,3,INK)
 		"launchpad":
 			panel(im,2,26,28,5,"95a291");rect(im,4,7,2,20,INK);rect(im,4,8,8,2,"a88c65")
 			rect(im,15,2,4,2,INK);rect(im,13,4,8,3,INK);panel(im,12,7,10,19,"ecdfb9")
 			rect(im,13,9,8,3,"b86f59");panel(im,14,14,6,6,"79a6a4");rect(im,15,15,2,2,"d5edce")
 			rect(im,10,22,3,6,ROOF);rect(im,21,22,3,6,ROOF);rect(im,15,26,4,3,"ddab5d")
+			if active:
+				rect(im,6,10+n,6,1,"b4c7b4");rect(im,24,27-n,2,2,"e8d587")
 		_:
 			factory(im,kind,frame)
 	return im

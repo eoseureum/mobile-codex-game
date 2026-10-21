@@ -15,6 +15,10 @@ with sync_playwright() as p:
  page.wait_for_timeout(2500);page.screenshot(path='/tmp/rust-godot-portrait.png')
  assert not errors,errors
  assert page.locator('#canvas').is_visible()
+ motion_before=page.screenshot(clip={'x':36,'y':366,'width':54,'height':62})
+ page.wait_for_timeout(500);page.screenshot(path='/tmp/rust-motion-next.png')
+ assert motion_before!=page.screenshot(clip={'x':36,'y':366,'width':54,'height':62}), 'logging machinery must visibly move'
+ print('PASS actual production machinery animation')
  print('PASS actual single-threaded Godot Web boot')
  page.touchscreen.tap(196,397);page.wait_for_timeout(500);page.screenshot(path='/tmp/rust-pixel-facility.png')
  page.touchscreen.tap(340,792);page.wait_for_timeout(300)
