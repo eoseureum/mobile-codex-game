@@ -54,7 +54,7 @@ func _initialize():
 	check(g.command({"type":"build","kind":"mine","x":75,"y":66})=="OK","first mine is purchased with actual earned money and planks")
 	var mined=g.at(75,66)
 	check(g.command({"type":"setMineResource","entityId":mined.id,"resource":"coal"})=="LOCKED","vein mineral cannot be switched")
-	check(g.command({"type":"buildRoute","from":point(75,66),"to":point(66,64),"clear":true})=="OK","paid mine route reaches the starter shipping depot")
+	check(g.command({"type":"buildRoute","from":point(75,66),"to":point(66,64),"clear":false})=="OK","paid mine route reaches the starter shipping depot")
 	var mine_cash=g.state.cash;g.advance(180)
 	check(g.state.totals.sold.get("copper",0)>0 and g.state.cash-mine_cash>180*75,"mining creates delivered sales and visible midgame momentum")
 	Fixture.connected(g)
@@ -62,9 +62,11 @@ func _initialize():
 	var improved_quote=World.clear_quote(g,point(59,69),point(59,69))
 	check(improved_quote.cash>g.sale_price(g.state.entities.e3,"log")*2,"clearing fee follows improved sale prices")
 	Fixture.connected(g)
+	g.state.cash=0
 	var before=encoded(g)
-	check(g.command({"type":"clearArea","from":point(57,67),"to":point(61,71)})=="INSUFFICIENT_CASH","unaffordable bulk clearing is rejected")
+	check(g.command({"type":"clearArea","from":point(59,69),"to":point(59,69)})=="INSUFFICIENT_CASH","unaffordable bulk clearing is rejected")
 	check(encoded(g)==before,"unaffordable clearing changes nothing")
+	g.state.cash=500
 	var quote=World.clear_quote(g,point(59,69),point(59,69))
 	check(quote.ok and quote.cash>100 and quote.reward.get("log")==2,"tree clearing quotes modest recovery with nonprofitable fee")
 	check(g.command({"type":"clearArea","from":point(59,69),"to":point(59,69)})=="OK","single tile can be cleared")
@@ -87,14 +89,14 @@ func _initialize():
 	check(g.command({"type":"buildRoute","from":point(64,66),"to":point(68,66),"clear":false})=="OK" and g.state.cash==0,"route places once with exact total cost")
 	for x in range(64,69):check(g.at(x,66).kind=="belt" and int(g.at(x,66).direction)==1,"new belts point toward destination")
 	Fixture.connected(g)
-	var direct=World.route_quote(g,point(56,69),point(62,69),true)
-	var detour=World.route_quote(g,point(56,69),point(62,69),false)
+	var direct=World.route_quote(g,point(58,69),point(60,69),true)
+	var detour=World.route_quote(g,point(58,69),point(60,69),false)
 	check(direct.ok and direct.clear.size()>0 and detour.ok and detour.clear.is_empty(),"both clearing and avoiding forest routes exist")
 	check(direct.cells.size()<detour.cells.size(),"clearing allows a shorter route")
 	g.state.cash=direct.cash
-	check(g.command({"type":"buildRoute","from":point(56,69),"to":point(62,69),"clear":true})=="OK","clearing and conveyor construction commit together")
+	check(g.command({"type":"buildRoute","from":point(58,69),"to":point(60,69),"clear":true})=="OK","clearing and conveyor construction commit together")
 	check(g.stock("log")==direct.reward.log,"combined route recovers each removed tree exactly once")
-	before=encoded(g);check(g.command({"type":"buildRoute","from":point(56,69),"to":point(62,69),"clear":true})!="OK" and encoded(g)==before,"repeat route cannot duplicate cleared resources")
+	before=encoded(g);check(g.command({"type":"buildRoute","from":point(58,69),"to":point(60,69),"clear":true})!="OK" and encoded(g)==before,"repeat route cannot duplicate cleared resources")
 	# Test fixtures exercise local inventory without granting a campaign shortcut.
 	Fixture.connected(g);g.state.factory.reserves.log=0
 	var w1=g.create_entity("warehouse",64,66);var w2=g.create_entity("warehouse",70,66,{"dispatchResource":"log"})

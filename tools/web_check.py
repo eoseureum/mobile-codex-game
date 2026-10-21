@@ -20,7 +20,7 @@ with sync_playwright() as p:
  def backup():
   page.touchscreen.tap(48,792);page.wait_for_timeout(400)
   with page.expect_download() as download:
-   page.touchscreen.tap(195,555)
+   page.touchscreen.tap(195,605)
   return json.loads(Path(download.value.path()).read_text())
  empty=backup()['state']
  assert empty['cash']==2250 and not empty['entities'] and not empty['totals']['produced'],empty
@@ -57,7 +57,7 @@ with sync_playwright() as p:
  def import_paid_fixture(name):
   page.touchscreen.tap(48,792);page.wait_for_timeout(350)
   with page.expect_file_chooser() as chooser:
-   page.touchscreen.tap(195,615)
+   page.touchscreen.tap(195,660)
   chooser.value.set_files(str(root/'build/fixtures'/name));page.wait_for_timeout(400)
   page.keyboard.press('Enter');page.wait_for_timeout(650)
  import_paid_fixture('opening-ready.json')
@@ -74,7 +74,7 @@ with sync_playwright() as p:
  import_paid_fixture('warehouse-ready.json')
  page.touchscreen.tap(326,397);page.wait_for_timeout(350)
  page.screenshot(path='/tmp/rust-opening-shipping-ready.png')
- page.touchscreen.tap(300,662);page.wait_for_timeout(300);page.keyboard.press('Enter');page.wait_for_timeout(650)
+ page.touchscreen.tap(300,696);page.wait_for_timeout(300);page.keyboard.press('Enter');page.wait_for_timeout(650)
  shipping=backup()['state']
  assert len(shipping['entities'])==5 and any(e['kind']=='warehouse' and e['x']==66 for e in shipping['entities'].values()),shipping
  assert shipping['cash']==shipping['totals']['earned']-2150

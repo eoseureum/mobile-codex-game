@@ -1,0 +1,9 @@
+# Scattered resources and compact mobile controls
+
+Natural resource tiles now have at least one empty tile between them, including diagonally. Seeded placement uses four randomized sites per 8×8 region, with individual starter sources and a free initial processing corridor. Old worlds are redistributed on validated load; buildings, extractor source types, cleared ground, inventories, money and progression remain intact. Redistribution runs once per world.
+
+Construction, warehouse inventory, sales policies, orders and records use bounded pages. Facility settings have separate improvement, logistics and stock tabs. Card height follows its content when opened or rebuilt, rather than changing with resource quantities. Controls retain at least 48 CSS pixels as touch targets. In landscape, the card sits on the right and navigation stays on the left. Extremely constrained screens retain a scroll fallback.
+
+The HUD reports regular sales income using completed 20-second windows, averaging up to the last minute. Values stay fixed between reporting boundaries. Shipment contract rewards do not inflate the operating sales rate. Before the first completed window, the HUD shows that it is gathering data. World sale history retains 80 seconds so the previous complete minute is available between boundaries; legacy campaign simulation retention is unchanged.
+
+Validation includes deterministic resource spacing across seeds, old-city migration, real paid starter logging income and pause recovery, compact cards at 390×844 / 320×568 / 960×540 / 844×320, and existing save, world, animation and opening regression checks. The actual single-threaded Web build is exercised through Chromium touch input for paid construction, sales, persistence, rotation and the linked sawmill/warehouse opening. Native iPhone Safari remains a device-level follow-up.

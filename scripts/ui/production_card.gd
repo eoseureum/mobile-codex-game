@@ -1,5 +1,6 @@
 extends RefCounted
 const Art=preload("res://scripts/ui/pixel_art.gd")
+const Panels=preload("res://scripts/ui/paged_panels.gd")
 const Opening=preload("res://scripts/ui/opening_ux.gd")
 static func picture(ui,parent,kind):
 	var p=TextureRect.new();p.texture=Art.texture(kind);p.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
@@ -42,11 +43,12 @@ static func show(ui,e):
 		var progress=ProgressBar.new();progress.show_percentage=false;progress.custom_minimum_size.y=6*ui.scale_ui;ui.body.add_child(progress)
 		ui.bindings.append(func():if is_instance_valid(progress):progress.value=clampf(1-e.job.remaining/f.cycle,0,1)*100 if e.job!=null else 0)
 	if e.kind=="warehouse":
-		for resource_id in Opening.handled_resources(game,e):
+		var resources=Opening.handled_resources(game,e)
+		for resource_id in Panels.items(ui,"depot",resources,2):
 			var r=resource_id;var row=ui._row();picture(ui,row,"item_"+r)
 			ui._bind_label(row,func():return "보관 %d / %d"%[e.inventory.get(r,0),int(game.state.factory.reserves[r])] if e.autoSell and game.state.factory.reserves[r]>0 else "재고 %d"%e.inventory.get(r,0));ui._spacer(row)
 			picture(ui,row,"icon_coin");ui._bind_label(row,func():return game.money(game.sale_price(e,r)) if e.autoSell and game.state.factory.reserves[r]>=0 else "—")
-		var row=ui._row();ui._spacer(row);ui._button(row,"설정",func():ui.inspect_details=true;ui._rebuild())
+		Panels.pager(ui,"depot",resources.size(),2,"설정",func():ui.inspect_details=true;ui.inspector_page="flow";ui._rebuild())
 		return
 	var suggestion=Opening.suggestion(game,e)
 	ui.map.opportunity=suggestion
@@ -54,7 +56,7 @@ static func show(ui,e):
 		var future=ui._row();picture(ui,future,"sawmill");ui._label(future,"→")
 		resource(ui,future,"plank",3);ui._label(future,"→");picture(ui,future,"icon_coin");ui._label(future,game.money(3*game.price("plank")))
 	var row=ui._row()
-	ui._button(row,"설정",func():ui.inspect_details=true;ui._rebuild())
+	ui._button(row,"설정",func():ui.inspect_details=true;ui.inspector_page="improve";ui._rebuild())
 	ui._spacer(row)
 	if not suggestion.is_empty():
 		var label=game.data.facilities[suggestion.kind].name+" + 연결\n₩ "+game.money(suggestion.cash)

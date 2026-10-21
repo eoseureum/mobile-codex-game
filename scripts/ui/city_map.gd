@@ -37,10 +37,10 @@ func focus_district(id="forest"):
 		focus_point(Vector2i(int(game.state.world.spawn.x),int(game.state.world.spawn.y)));return
 	var d=game.data.districts[id]
 	var n=maxf(3,game.state.districts[id].size)
-	camera=(size*Vector2(0.5,0.47)-Vector2(d.x+n/2,d.y+n/2)*tile_size*zoom).round()
+	camera=(size*Vector2(0.25 if size.x>size.y*1.3 else 0.5,0.47)-Vector2(d.x+n/2,d.y+n/2)*tile_size*zoom).round()
 	queue_redraw()
 func focus_point(tile:Vector2i):
-	camera=(size*Vector2(0.5,0.47)-(Vector2(tile)+Vector2.ONE*0.5)*tile_size*zoom).round()
+	camera=(size*Vector2(0.25 if size.x>size.y*1.3 else 0.5,0.47)-(Vector2(tile)+Vector2.ONE*0.5)*tile_size*zoom).round()
 	clamp_camera();queue_redraw()
 func clamp_camera():
 	if not game.world_mode():return

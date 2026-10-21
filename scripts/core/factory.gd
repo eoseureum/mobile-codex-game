@@ -669,7 +669,7 @@ func tick():
 	progression()
 	state.clock.tickIndex+=1
 	state.clock.elapsedS+=DT
-	state.recentSales=state.recentSales.filter(func(e): return e.atS>state.clock.elapsedS-60)
+	state.recentSales=state.recentSales.filter(func(e): return e.atS>state.clock.elapsedS-(80 if world_mode() else 60))
 
 func advance(seconds):
 	var total=seconds+state.clock.carryS

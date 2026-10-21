@@ -18,34 +18,43 @@ static func valid_point(p) -> bool:
 		if not (n is int or n is float) or not is_finite(float(n)) or n!=floor(n) or n<0 or n>=SIZE:return false
 	return true
 static func resource_at(world:Dictionary,x,y) -> String:return world.nodes.get(key(x,y),"")
-static func patch(nodes:Dictionary,x:int,y:int,radius:int,resource:String):
-	for dy in range(-radius,radius+1):
-		for dx in range(-radius,radius+1):
-			if dx*dx+dy*dy>radius*radius or x+dx<0 or y+dy<0 or x+dx>=SIZE or y+dy>=SIZE:continue
-			nodes[key(x+dx,y+dy)]=resource
 static func generate(seed_value:int) -> Dictionary:
 	var rng=RandomNumberGenerator.new();rng.seed=seed_value
-	var nodes={}
-	for cy in range(8):
-		for cx in range(8):
-			var x=cx*16+8+rng.randi_range(-3,3);var y=cy*16+8+rng.randi_range(-3,3)
-			var r=["log","log","stone","coal","copper","iron"][rng.randi_range(0,5)]
-			patch(nodes,x,y,3 if r=="log" else 2,r)
-	# A fair opening replaces random spawn luck. Clustered resources still surround it.
-	for pos in nodes.keys():
-		var p=parse_key(pos)
-		if abs(p.x-64)<=16 and abs(p.y-64)<=16:nodes.erase(pos)
-	for p in [Vector2i(59,69),Vector2i(69,69),Vector2i(58,59),Vector2i(70,58)]:patch(nodes,p.x,p.y,2,"log")
-	patch(nodes,75,66,2,"copper");patch(nodes,65,76,2,"stone")
-	patch(nodes,75,55,2,"coal");patch(nodes,52,54,2,"iron")
-	nodes[key(62,64)]="log"
-	return {"version":1,"seed":seed_value,"width":SIZE,"height":SIZE,"spawn":{"x":64,"y":64},"nodes":nodes,"cleared":{},"revision":0}
+	var nodes={"62,64":"log","59,69":"log","69,69":"log","58,59":"log","70,58":"log","75,66":"copper","65,76":"stone","75,55":"coal","52,54":"iron"}
+	for cy in range(16):
+		for cx in range(16):
+			var count=0
+			for attempt in range(80):
+				if count==4:break
+				var x=cx*8+rng.randi_range(1,6);var y=cy*8+rng.randi_range(1,6)
+				if x>=61 and x<=68 and y>=62 and y<=67:continue
+				var free=true
+				for dy in range(-1,2):
+					for dx in range(-1,2):
+						if nodes.has(key(x+dx,y+dy)):free=false
+				if not free:continue
+				nodes[key(x,y)]=["log","log","stone","coal","copper","iron"][rng.randi_range(0,5)];count+=1
+	return {"version":1,"scatterVersion":2,"seed":seed_value,"width":SIZE,"height":SIZE,"spawn":{"x":64,"y":64},"nodes":nodes,"cleared":{},"revision":0}
+static func redistribute(state:Dictionary):
+	var w=state.world
+	if w.get("scatterVersion")==2:return
+	var nodes=generate(int(w.seed)).nodes
+	for pos in w.cleared:nodes.erase(pos)
+	for e in state.entities.values():
+		if e.kind in ["forest","mine"]:
+			for dy in range(-1,2):
+				for dx in range(-1,2):nodes.erase(key(e.x+dx,e.y+dy))
+		else:nodes.erase(key(e.x,e.y))
+	for e in state.entities.values():
+		if e.kind in ["forest","mine"]:nodes[key(e.x,e.y)]="log" if e.kind=="forest" else e.mineResourceId
+	w.nodes=nodes;w.scatterVersion=2;w.revision=mini(2147483647,int(w.revision)+1)
 static func valid_model(w) -> bool:
 	if not w is Dictionary:return false
 	for pair in [["version",1],["width",SIZE],["height",SIZE]]:
 		var n=w.get(pair[0])
 		if not (n is int or n is float) or n!=pair[1]:return false
 	if not valid_point(w.get("spawn")):return false
+	if w.has("scatterVersion") and w.scatterVersion!=2:return false
 	for field in ["seed","revision"]:
 		var n=w.get(field)
 		if not (n is int or n is float) or not is_finite(float(n)) or n!=floor(n) or n<0 or n>2147483647:return false

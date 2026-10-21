@@ -34,7 +34,7 @@ func run():
 		main.show_tab("settings")
 		await process_frame
 		check(main.sheet.position.x>=12*u and main.sheet.position.x+main.sheet.size.x<=main.size.x-12*u,"expanded panel floats with side margins")
-		check(main.sheet.position.y+main.sheet.size.y<=main.nav.position.y-8*u,"expanded panel clears navigation touch targets")
+		check(not main.sheet.get_rect().intersects(main.nav.get_rect()),"expanded panel clears navigation touch targets")
 		check(not main.sheet.get_rect().intersects(main.header.get_node("WarehouseButton").get_rect()),"floating panel does not cover the warehouse button on short screens")
 		main.show_tab("map")
 		await process_frame
