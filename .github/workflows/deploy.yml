@@ -34,6 +34,8 @@ jobs:
         run: godot --headless --path . --script tests/test_runner.gd
       - name: Check stable production controls
         run: godot --headless --path . -- --ui-check
+      - name: Check floating layout and touch targets
+        run: godot --headless --path . --script tests/test_ui_layout.gd
       - name: Export single-threaded web game
         run: |
           mkdir -p build/web

@@ -2,10 +2,12 @@ extends Control
 const Factory=preload("res://scripts/core/factory.gd")
 const SaveStore=preload("res://scripts/core/save_store.gd")
 const CityMap=preload("res://scripts/ui/city_map.gd")
+const Art=preload("res://scripts/ui/pixel_art.gd")
 var game=Factory.new()
 var store=SaveStore.new()
 var map
-var header: Panel
+var header: Control
+var wallet: Panel
 var cash_label: Label
 var income_label: Label
 var stage_label: Label
@@ -45,25 +47,26 @@ func _ready():
 	skin.default_font=load("res://assets/fonts/RustCity.otf")
 	theme=skin
 	map=CityMap.new();map.game=game;add_child(map);map.tile_pressed.connect(_tile)
-	header=Panel.new();add_child(header)
-	cash_label=Label.new();header.add_child(cash_label)
-	income_label=Label.new();header.add_child(income_label)
-	stage_label=Label.new();header.add_child(stage_label)
-	var warehouse=_button(header,"창고",func():show_tab("inventory"));warehouse.name="WarehouseButton"
+	header=Control.new();header.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(header)
+	wallet=Panel.new();wallet.mouse_filter=Control.MOUSE_FILTER_IGNORE;header.add_child(wallet)
+	cash_label=Label.new();cash_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;wallet.add_child(cash_label)
+	income_label=Label.new();income_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;wallet.add_child(income_label)
+	stage_label=Label.new();stage_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;wallet.add_child(stage_label)
+	var warehouse=_floating_button(header,"창고","inventory",func():show_tab("inventory"));warehouse.name="WarehouseButton"
 	sheet=Panel.new();add_child(sheet)
 	handle=_button(sheet,"",func():
 		if not drag_moved:sheet_fraction=0.48 if sheet_fraction==0 else 0.0;_layout())
 	handle.gui_input.connect(_sheet_input)
 	scroll=ScrollContainer.new();sheet.add_child(scroll);scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
 	body=VBoxContainer.new();body.size_flags_horizontal=Control.SIZE_EXPAND_FILL;scroll.add_child(body)
-	nav=HBoxContainer.new();add_child(nav)
+	nav=HBoxContainer.new();nav.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(nav)
 	for item in [["settings","관리"],["records","기록"],["industry","산업"],["build","건설"],["map","지도"]]:
 		var id=item[0]
-		var button=_button(nav,item[1],func():show_tab(id));button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-	map_buttons=VBoxContainer.new();add_child(map_buttons)
-	_button(map_buttons,"+",func():map.zoom_by(0.15))
-	_button(map_buttons,"−",func():map.zoom_by(-0.15))
-	_button(map_buttons,"⌂",func():map.focus_district())
+		var button=_floating_button(nav,item[1],id,func():show_tab(id));button.set_meta("tab",id);button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	map_buttons=VBoxContainer.new();map_buttons.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(map_buttons)
+	_icon_button(map_buttons,"plus",func():map.zoom_by(0.15))
+	_icon_button(map_buttons,"minus",func():map.zoom_by(-0.15))
+	_icon_button(map_buttons,"home",func():map.focus_district())
 	toast_label=Label.new();toast_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;toast_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;add_child(toast_label)
 	dialog=ConfirmationDialog.new();dialog.title="Rust City";add_child(dialog);dialog.confirmed.connect(func():if pending_action.is_valid():pending_action.call())
 	resized.connect(_resize_layout)
@@ -84,11 +87,36 @@ func _resize_layout():
 	# Theme and container minimum sizes settle on the next frame after rotation.
 	await get_tree().process_frame
 	_layout();map.focus_district()
+	await get_tree().process_frame
+	for b in nav.get_children():_size_floating_button(b,scale_ui)
 
-func _box(color:Color,radius=16) -> StyleBoxFlat:
-	var box=StyleBoxFlat.new();box.bg_color=color;box.border_color=Color("cbd6b3");box.set_border_width_all(1);box.set_corner_radius_all(int(radius*scale_ui));box.content_margin_left=12*scale_ui;box.content_margin_right=12*scale_ui;return box
+func _box(color:Color,radius=10) -> StyleBoxFlat:
+	var box=StyleBoxFlat.new();box.bg_color=color;box.border_color=Color("8c9470")
+	box.set_border_width_all(maxi(1,int(2*scale_ui)));box.set_corner_radius_all(int(radius*scale_ui))
+	box.content_margin_left=12*scale_ui;box.content_margin_right=12*scale_ui
+	box.shadow_color=Color("344a3b32");box.shadow_size=int(3*scale_ui);box.shadow_offset=Vector2(0,4)*scale_ui
+	return box
 func _button(parent,text,action:Callable) -> Button:
 	var b=Button.new();b.text=text;b.custom_minimum_size=Vector2(48,48)*scale_ui;b.pressed.connect(action);parent.add_child(b);return b
+func _icon_button(parent,icon,action:Callable) -> Button:
+	var b=_button(parent,"",action);b.set_meta("icon",icon)
+	var picture=TextureRect.new();picture.texture=Art.texture("icon_"+icon);picture.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
+	picture.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;picture.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED;picture.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	b.add_child(picture);picture.name="PixelIcon"
+	b.resized.connect(func():_size_floating_button(b,scale_ui,b.has_node("Caption")))
+	b.tooltip_text={"plus":"확대","minus":"축소","home":"산림으로"}.get(icon,"")
+	return b
+func _floating_button(parent,text,icon,action:Callable) -> Button:
+	var b=_icon_button(parent,icon,action)
+	var label=Label.new();label.name="Caption";label.text=text;label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;label.mouse_filter=Control.MOUSE_FILTER_IGNORE;b.add_child(label)
+	b.tooltip_text=text
+	return b
+func _size_floating_button(b:Button,u:float,caption=true):
+	var icon=b.get_node("PixelIcon")
+	icon.position=Vector2(0,5 if caption else 0)*u
+	icon.size=Vector2(b.size.x,32*u if caption else b.size.y)
+	if caption:
+		var label=b.get_node("Caption");label.position=Vector2(0,36)*u;label.size=Vector2(b.size.x,22*u);label.add_theme_font_size_override("font_size",int(12*u))
 func _label(parent,text="",large=false) -> Label:
 	var l=Label.new();l.text=text;l.add_theme_font_size_override("font_size",int((20 if large else 14)*scale_ui));parent.add_child(l);return l
 func _bind_label(parent,get_text:Callable,large=false) -> Label:
@@ -123,33 +151,44 @@ func _layout():
 		physical=Vector2i(int(JavaScriptBridge.eval("window.innerWidth")),int(JavaScriptBridge.eval("window.innerHeight")))
 	if physical.x<2 or physical.y<2:physical=Vector2i(size)
 	scale_ui=size.x/maxf(1,physical.x)
-	theme.default_font_size=int(15*scale_ui)
-	theme.set_stylebox("normal","Button",_box(Color("fff9e8")))
-	theme.set_stylebox("hover","Button",_box(Color("f2e9c9")))
-	theme.set_stylebox("pressed","Button",_box(Color("e2eacb")))
-	theme.set_stylebox("disabled","Button",_box(Color("eff0dc")))
-	for state in ["font_color","font_hover_color","font_pressed_color"]:theme.set_color(state,"Button",Color("5d7450"))
-	theme.set_color("font_disabled_color","Button",Color("a9b395"));theme.set_color("font_color","Label",Color("52664a"))
 	var u=scale_ui
-	var h=(108 if size.y>size.x else 84)*u
-	var bottom=60*u
-	header.position=Vector2.ZERO;header.size=Vector2(size.x,h);header.add_theme_stylebox_override("panel",_box(Color("faf7e8"),0))
-	cash_label.position=Vector2(18,28)*u;cash_label.add_theme_font_size_override("font_size",int(27*u))
-	income_label.position=Vector2(18,65)*u;income_label.add_theme_font_size_override("font_size",int(11*u))
-	stage_label.position=Vector2(18,9)*u;stage_label.add_theme_font_size_override("font_size",int(11*u))
-	var warehouse=header.get_node("WarehouseButton");warehouse.custom_minimum_size=Vector2(75,48)*u;warehouse.position=Vector2(size.x-90*u,26*u);warehouse.size=Vector2(75,48)*u
-	map.position=Vector2(0,h);map.size=Vector2(size.x,size.y-h-bottom);map.tile_size=88*u
-	nav.position=Vector2(0,size.y-bottom);nav.size=Vector2(size.x,bottom)
-	for child in nav.get_children():child.custom_minimum_size=Vector2(48,52)*u
-	var height=72*u if sheet_fraction==0 else map.size.y*sheet_fraction
-	height=clampf(height,72*u,maxf(72*u,map.size.y-60*u))
-	sheet.position=Vector2(0,size.y-bottom-height);sheet.size=Vector2(size.x,height);sheet.add_theme_stylebox_override("panel",_box(Color("fcfaef"),20))
-	handle.custom_minimum_size=Vector2(48,48)*u;handle.position=Vector2.ZERO;handle.size=Vector2(size.x,72*u)
-	scroll.position=Vector2(14,76)*u;scroll.size=Vector2(size.x-28*u,maxf(0,height-82*u));scroll.visible=sheet_fraction>0
-	body.add_theme_constant_override("separation",int(9*u))
-	map_buttons.position=Vector2(size.x-66*u,sheet.position.y-178*u);map_buttons.size=Vector2(52,160)*u;map_buttons.visible=sheet_fraction<0.65
+	theme.default_font_size=int(14*u)
+	for type in ["Button","OptionButton"]:
+		theme.set_stylebox("normal",type,_box(Color("fff2cf")))
+		theme.set_stylebox("hover",type,_box(Color("fff8e1")))
+		theme.set_stylebox("pressed",type,_box(Color("dbe8b5")))
+		theme.set_stylebox("disabled",type,_box(Color("e5e5c3")))
+		for state in ["font_color","font_hover_color","font_pressed_color"]:theme.set_color(state,type,Color("414b38"))
+		theme.set_color("font_disabled_color",type,Color("969b80"))
+		var focus=_box(Color.TRANSPARENT);focus.border_color=Color("b58d4f");focus.shadow_size=0;theme.set_stylebox("focus",type,focus)
+	theme.set_color("font_color","Label",Color("414b38"))
+	map.position=Vector2.ZERO;map.size=size;map.tile_size=96*u
+	header.position=Vector2.ZERO;header.size=size
+	wallet.position=Vector2(16,16)*u;wallet.size=Vector2(214,86)*u;wallet.add_theme_stylebox_override("panel",_box(Color("fff2cf"),12))
+	cash_label.position=Vector2(14,24)*u;cash_label.add_theme_font_size_override("font_size",int(28*u))
+	income_label.position=Vector2(14,62)*u;income_label.add_theme_font_size_override("font_size",int(10*u))
+	stage_label.position=Vector2(14,8)*u;stage_label.add_theme_font_size_override("font_size",int(10*u))
+	var warehouse=header.get_node("WarehouseButton");warehouse.custom_minimum_size=Vector2(64,64)*u
+	warehouse.position=Vector2(size.x-80*u,16*u);warehouse.size=Vector2(64,64)*u;_size_floating_button(warehouse,u)
+	var dock_width=minf(384*u,size.x-32*u)
+	nav.add_theme_constant_override("separation",int(8*u))
+	for child in nav.get_children():child.custom_minimum_size=Vector2(48,64)*u
+	nav.position=Vector2((size.x-dock_width)/2,size.y-84*u);nav.size=Vector2(dock_width,64*u)
+	for child in nav.get_children():_size_floating_button(child,u)
+	var width=minf(430*u,size.x-32*u) if sheet_fraction>0 else minf(234*u,size.x-32*u)
+	var available=maxf(56*u,size.y-216*u)
+	var height=56*u if sheet_fraction==0 else clampf(available*sheet_fraction,minf(180*u,available),available)
+	sheet.position=Vector2(size.x-width-16*u,nav.position.y-height-16*u);sheet.size=Vector2(width,height)
+	sheet.add_theme_stylebox_override("panel",_box(Color("fff5d9"),12))
+	handle.custom_minimum_size=Vector2(48,48)*u;handle.position=Vector2.ZERO;handle.size=Vector2(width,56*u)
+	for state in ["normal","hover","pressed","focus"]:handle.add_theme_stylebox_override(state,StyleBoxEmpty.new())
+	scroll.position=Vector2(14,60)*u;scroll.size=Vector2(width-28*u,maxf(0,height-74*u));scroll.visible=sheet_fraction>0
+	body.add_theme_constant_override("separation",int(10*u))
+	map_buttons.add_theme_constant_override("separation",int(8*u))
 	for b in map_buttons.get_children():b.custom_minimum_size=Vector2(48,48)*u
-	toast_label.position=Vector2(8*u,h+8*u);toast_label.size=Vector2(size.x-16*u,45*u);toast_label.add_theme_font_size_override("font_size",int(13*u))
+	map_buttons.position=Vector2(size.x-64*u,sheet.position.y-176*u);map_buttons.size=Vector2(48,160)*u;map_buttons.visible=sheet_fraction==0
+	for b in map_buttons.get_children():_size_floating_button(b,u,false)
+	toast_label.position=Vector2(16,116)*u;toast_label.size=Vector2(size.x-32*u,44*u);toast_label.add_theme_font_size_override("font_size",int(13*u))
 	_layout_title()
 func _sheet_input(e):
 	if e is InputEventMouseButton and e.button_index==MOUSE_BUTTON_LEFT:
@@ -159,7 +198,7 @@ func _sheet_input(e):
 		var dy=drag_start-get_global_mouse_position().y
 		if abs(dy)>6*scale_ui:
 			drag_moved=true
-			sheet_fraction=clampf((drag_initial+dy)/map.size.y,0.0,0.8)
+			sheet_fraction=clampf((drag_initial+dy)/maxf(1,size.y-216*scale_ui),0.0,0.8)
 			if sheet_fraction<0.2:sheet_fraction=0
 			_layout()
 func _layout_title():
@@ -167,7 +206,10 @@ func _layout_title():
 	var e=game.state.entities.get(selected,{})
 	handle.text=(game.data.facilities[e.kind].name if not e.is_empty() else "빈 건설 부지") if tab=="map" else labels.get(tab,"")
 	if tab=="build" and not build_kind.is_empty():handle.text=game.data.facilities[build_kind].name+" 배치"
-	handle.text+="   펼치기 ↑" if sheet_fraction==0 else "   접기 ↓"
+	handle.text+="   ↑" if sheet_fraction==0 else "   ↓"
+	for b in nav.get_children():
+		var active=b.get_meta("tab")==tab
+		b.add_theme_stylebox_override("normal",_box(Color("e2b86b") if active else Color("fff2cf")))
 func show_tab(value):
 	tab=value;sheet_fraction=0 if tab=="map" else 0.48;_rebuild();_layout()
 func _tile(tile):
@@ -181,7 +223,7 @@ func _tile(tile):
 			if result=="OK":selected=game.at(tile.x,tile.y).id;tab="map";_save();_rebuild();_layout()
 			else:message("건설 조건이나 비용을 확인해 주세요."))
 		return
-	selected=e.get("id","");tab="map";sheet_fraction=0;_rebuild();_layout()
+	selected=e.get("id","");tab="map";sheet_fraction=0.56;_rebuild();_layout()
 
 func _signature() -> String:
 	var value=game.state.stage+str(game.recorded("first_auto_sale"))
@@ -351,8 +393,8 @@ func _refresh():
 	stage_label.text="RUST CITY · "+game.data.stageNames[game.stage_index()]
 	var earned=0.0
 	for sale in game.state.recentSales:earned+=sale.cash
-	income_label.text="자동 수입 ₩ %s / 분"%Factory.money(earned*60/maxf(1,minf(60,game.state.clock.elapsedS)))
-	if game.stage_index()>=3:income_label.text+="   ϟ %.0f / %.0f"%[game.state.power.generation,game.state.power.demand]
+	income_label.text="₩ %s / 분"%Factory.money(earned*60/maxf(1,minf(60,game.state.clock.elapsedS)))
+	if game.stage_index()>=3:income_label.text+="   전력 %.0f / %.0f"%[game.state.power.generation,game.state.power.demand]
 	for binding in bindings:binding.call()
 	_layout_title()
 func _process(delta):

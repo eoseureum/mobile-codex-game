@@ -16,23 +16,25 @@ with sync_playwright() as p:
  assert not errors,errors
  assert page.locator('#canvas').is_visible()
  print('PASS actual single-threaded Godot Web boot')
- page.touchscreen.tap(39,814);page.wait_for_timeout(600);page.screenshot(path='/tmp/rust-godot-settings.png')
+ page.touchscreen.tap(196,300);page.wait_for_timeout(500);page.screenshot(path='/tmp/rust-pixel-facility.png')
+ page.touchscreen.tap(340,792);page.wait_for_timeout(300)
+ page.touchscreen.tap(48,792);page.wait_for_timeout(600);page.screenshot(path='/tmp/rust-godot-settings.png')
  with page.expect_download() as download:
-  page.touchscreen.tap(195,588)
+  page.touchscreen.tap(195,555)
  saved=json.loads(Path(download.value.path()).read_text())
  assert saved['state']['cash']>=500 and len(saved['state']['entities'])==3
  assert saved['state']['totals']['produced'].get('log',0)>0
  print('PASS touch controls and actual factory backup export')
  page.wait_for_timeout(10000);page.reload()
  page.wait_for_function('!document.querySelector("#status") || document.querySelector("#status").style.display === "none"',timeout=90000)
- page.wait_for_timeout(1500);page.touchscreen.tap(39,814);page.wait_for_timeout(400)
+ page.wait_for_timeout(1500);page.touchscreen.tap(48,792);page.wait_for_timeout(400)
  with page.expect_download() as download:
-  page.touchscreen.tap(195,588)
+  page.touchscreen.tap(195,555)
  reloaded=json.loads(Path(download.value.path()).read_text())
  assert reloaded['state']['clock']['elapsedS']>=8,reloaded['state']['clock']
  assert reloaded['state']['cash']>=saved['state']['cash']
  print('PASS Web persistent save survives reload')
- page.touchscreen.tap(350,814);page.wait_for_timeout(300)
+ page.touchscreen.tap(340,792);page.wait_for_timeout(300)
  page.set_viewport_size({'width':960,'height':540});page.wait_for_timeout(800);page.screenshot(path='/tmp/rust-godot-landscape.png')
  print('PASS landscape/portrait render')
  errors += [m for m in messages if 'SCRIPT ERROR' in m or m.startswith('ERROR:')]

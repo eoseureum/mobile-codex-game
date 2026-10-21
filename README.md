@@ -6,7 +6,7 @@
 
 1. 이 저장소를 내려받고 **Godot 4.5**에서 `project.godot`을 엽니다.
 2. F6 또는 F5로 실행합니다. 시작 장면은 `scenes/Main.tscn`입니다.
-3. 지도는 드래그로 이동하고 오른쪽 버튼으로 확대·축소합니다. 하단 패널은 눌러 펼치거나 위아래로 드래그합니다.
+3. 지도는 드래그로 이동하고 오른쪽 플로팅 버튼으로 확대·축소합니다. 시설을 누르면 조작 카드가 열리고, 카드 윗부분을 드래그해 높이를 바꿀 수 있습니다. 하단 메뉴의 지도 버튼을 누르면 카드가 접힙니다.
 
 통나무 생산, 가공, 운송, 판매는 자동입니다. 시작 자금은 ₩500이며 추가 제재소는 ₩1,500입니다. 생산 속도·운영 수익·매니저를 별도로 개선하고, 주문 출하와 도시 건설을 거쳐 산업·전력·우주 산업을 확장합니다. 미해금 항목은 `?`로 표시합니다.
 
@@ -18,6 +18,7 @@ Godot 4.5의 Export Templates를 설치한 뒤 프로젝트 폴더에서 실행�
 godot --headless --path . --editor --quit
 godot --headless --path . --script tests/test_runner.gd
 godot --headless --path . -- --ui-check
+godot --headless --path . --script tests/test_ui_layout.gd
 mkdir -p build/web
 touch build/.gdignore
 godot --headless --path . --export-release Web build/web/index.html
@@ -42,4 +43,6 @@ PR마다 GitHub Actions가 실제 Godot 엔진으로 검사하고 `rust-city-web
 - `tests/reference_campaign.json`: 실제 비용을 지불하며 로켓까지 진행한 기존 웹 게임의 조작 기록. GDScript 결과와 돈·생산·판매·납품을 비교합니다.
 - `tools/web_check.py`: Web 빌드 후 Playwright와 Chromium으로 실제 Godot WASM 실행을 확인합니다.
 
-산림부터 로켓까지의 시뮬레이션은 JavaScript 래퍼 없이 GDScript로 실행됩니다. 한국어 폰트 라이선스는 `assets/fonts/OFL.txt`에 있습니다.
+산림부터 로켓까지의 시뮬레이션은 JavaScript 래퍼 없이 GDScript로 실행됩니다. 도트 지형·시설·고양이·메뉴 아이콘은 `scripts/ui/pixel_art.gd`의 32px 원본 픽셀 작업으로 생성되며, 외부 이미지나 유료 생성 서비스를 사용하지 않습니다. 지형과 스프라이트는 최근접 필터로 표시하고 한국어 UI는 가독성을 위해 부드러운 글꼴을 사용합니다.
+
+한국어 폰트 라이선스는 `assets/fonts/OFL.txt`에 있습니다.
