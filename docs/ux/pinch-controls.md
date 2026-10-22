@@ -1,0 +1,7 @@
+# Map pinch controls
+
+Two touches beginning on the uncovered map scale the map by their distance ratio. The world point under the old midpoint follows the moving midpoint, so pinch zoom and two-finger panning work together. Zoom keeps the existing 0.45–1.7 limits. Once one finger remains, it can continue panning; a multi-touch gesture never issues a tile selection when released.
+
+Touch starts respect floating UI. Drags and releases of an existing map gesture are tracked even over a card. A second finger beginning over UI suppresses accidental map taps without starting a map pinch. Focus loss cancels pending gestures. Emulated mouse events are ignored by the map only, preserving the existing button controls. Single taps and desktop mouse controls remain available; native magnify events use their gesture position.
+
+Validation: native input-event checks cover scale, midpoint anchoring, finger handoff, single-tap deduplication, drag threshold, cancellation, limits, UI crossing and focus recovery. `tools/pinch_web_check.py` sends real browser multi-touch events to the exported WASM and measures tree sprite size and displacement, verifies page scale stays at 1, and checks no construction or spending occurred. The standard Web regression still checks paid building, sales, persistence and conveyor transport. iPhone Safari hardware should additionally check pinch near floating cards and rotation.
