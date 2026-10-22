@@ -107,9 +107,9 @@ func _initialize():
 	check(target.outputs.get("plank",0)>0,"adjacent local warehouse supplies connected factory")
 	Fixture.connected(g);g.state.entities.e3.inventory.plank=100;g.state.factory.reserves.plank=0
 	var project=g.create_entity("cabin",67,64,{"project":{"materials":{},"remainingS":15.0,"complete":false}})
-	g.advance(2);check(project.project.materials.is_empty(),"city project cannot take distant/global stock automatically")
-	g.state.entities.e3.dispatchResource="plank";g.advance(45)
-	check(project.project.complete,"physically delivered project materials complete construction")
+	g.advance(2);check(project.project.materials.get("plank",0)==24,"city project allocates warehouse stock without a conveyor")
+	g.advance(15)
+	check(project.project.complete,"warehouse-funded city project completes construction")
 	Fixture.connected(g);g.state.stage="space"
 	var launch=g.create_entity("launchpad",74,64)
 	g.state.entities.e3.inventory=g.data.rocket.duplicate(true);g.advance(1)

@@ -170,6 +170,10 @@ static func project_step(game):
 		for r in definition.materials:
 			var n=mini(int(definition.materials[r]-p.materials.get(r,0)),int(e.inputs.get(r,0)))
 			game.add(e.inputs,r,-n);game.add(p.materials,r,n)
+			# City construction shares the same pooled stock as building costs.
+			# Keep old conveyor deliveries, then allocate only the missing amount.
+			n=mini(int(definition.materials[r]-p.materials.get(r,0)),stock(game,r))
+			if n>0:remove_materials(game,{r:n});game.add(p.materials,r,n)
 		if game.has_stock(p.materials,definition.materials):
 			p.remainingS=maxf(0,p.remainingS-game.DT)
 			if p.remainingS==0:p.complete=true;game.event("complete_"+e.kind);game.clear_effects()
