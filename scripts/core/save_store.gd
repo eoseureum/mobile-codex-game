@@ -134,6 +134,8 @@ func parse(text: String) -> Dictionary:
 	var parser=JSON.new()
 	if parser.parse(text)!=OK: last_error="백업 JSON을 읽을 수 없어요."; return {}
 	last_error=validate(parser.data)
+	if last_error.is_empty() and parser.data.state.has("world") and parser.data.state.world.get("scatterVersion")!=2:
+		World.redistribute(parser.data.state);last_error=validate(parser.data)
 	return parser.data if last_error.is_empty() else {}
 
 func snapshot(game) -> Dictionary:

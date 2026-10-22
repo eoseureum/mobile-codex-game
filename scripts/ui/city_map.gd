@@ -2,6 +2,7 @@ extends Control
 signal tile_pressed(tile: Vector2i)
 const World=preload("res://scripts/core/world_map.gd")
 const Art=preload("res://scripts/ui/pixel_art.gd")
+const Conveyor=preload("res://scripts/ui/conveyor_view.gd")
 const Motion=preload("res://scripts/ui/facility_motion.gd")
 var game
 var zoom=1.0
@@ -37,10 +38,10 @@ func focus_district(id="forest"):
 		focus_point(Vector2i(int(game.state.world.spawn.x),int(game.state.world.spawn.y)));return
 	var d=game.data.districts[id]
 	var n=maxf(3,game.state.districts[id].size)
-	camera=(size*Vector2(0.5,0.47)-Vector2(d.x+n/2,d.y+n/2)*tile_size*zoom).round()
+	camera=(size*Vector2(0.25 if size.x>size.y*1.3 else 0.5,0.47)-Vector2(d.x+n/2,d.y+n/2)*tile_size*zoom).round()
 	queue_redraw()
 func focus_point(tile:Vector2i):
-	camera=(size*Vector2(0.5,0.47)-(Vector2(tile)+Vector2.ONE*0.5)*tile_size*zoom).round()
+	camera=(size*Vector2(0.25 if size.x>size.y*1.3 else 0.5,0.47)-(Vector2(tile)+Vector2.ONE*0.5)*tile_size*zoom).round()
 	clamp_camera();queue_redraw()
 func clamp_camera():
 	if not game.world_mode():return
@@ -80,10 +81,10 @@ func record_transfers():
 	for t in game.transfers:
 		if particles.size()>=50:break
 		if not game.state.entities.has(t.sourceId) or not game.state.entities.has(t.targetId):continue
-		particles.append({"a":Vector2(game.state.entities[t.sourceId].x+0.5,game.state.entities[t.sourceId].y+0.5),"b":Vector2(game.state.entities[t.targetId].x+0.5,game.state.entities[t.targetId].y+0.5),"r":t.resource,"age":0.0})
+		particles.append({"a":Vector2(game.state.entities[t.sourceId].x+0.5,game.state.entities[t.sourceId].y+0.5),"b":Vector2(game.state.entities[t.targetId].x+0.5,game.state.entities[t.targetId].y+0.5),"r":t.resource,"duration":Conveyor.duration(game,game.state.entities[t.sourceId]),"age":0.0})
 func _process(delta):
 	for p in particles:p.age+=delta
-	particles=particles.filter(func(p):return p.age<0.65)
+	particles=particles.filter(func(p):return p.age<p.duration)
 	for p in sale_bubbles:p.age+=delta
 	sale_bubbles=sale_bubbles.filter(func(p):return p.age<1.4)
 	queue_redraw()
@@ -97,6 +98,10 @@ func _corners(r:Rect2,color:Color):
 	var a=r.position;var b=r.end
 	for corner in [Vector2(a.x,a.y),Vector2(b.x-7*p,a.y),Vector2(a.x,b.y-2*p),Vector2(b.x-7*p,b.y-2*p)]:draw_rect(Rect2(corner,Vector2(7*p,2*p)),color)
 	for corner in [Vector2(a.x,a.y),Vector2(b.x-2*p,a.y),Vector2(a.x,b.y-7*p),Vector2(b.x-2*p,b.y-7*p)]:draw_rect(Rect2(corner,Vector2(2*p,7*p)),color)
+func _item(resource,center,extent):
+	var pixels=maxf(12,round(extent))
+	var at=(center-Vector2.ONE*pixels*0.5).round()
+	draw_texture_rect_region(Art.texture("item_"+resource),Rect2(at,Vector2.ONE*pixels),Rect2(2,3,28,28))
 func _draw():
 	if game==null:return
 	draw_rect(Rect2(Vector2.ZERO,size),Color("a7ba7c"))
@@ -131,13 +136,16 @@ func _draw():
 		if not r.intersects(Rect2(Vector2.ZERO,size)):continue
 		var anim=Motion.frame(Motion.phase(game,e))
 		if game.transport(e):
+			for port in Conveyor.inputs(game,e):
+				if port==(int(e.direction)+2)%4:continue
+				draw_set_transform(r.get_center(),(port-1)*PI/2,Vector2.ONE*r.size.x/32)
+				# A half-belt joins at the hub; its far side ends at this tile edge.
+				draw_texture_rect_region(Art.texture("belt",anim),Rect2(0,-16,16,32),Rect2(16,0,16,32))
 			draw_set_transform(r.get_center(),(int(e.direction)-1)*PI/2,Vector2.ONE*r.size.x/32)
 			_sprite(e.kind,Rect2(-Vector2.ONE*16,Vector2.ONE*32),anim)
-			for i in range(e.queue.size()):
-				var cargo=Vector2(-13+i*3,-1)
-				draw_rect(Rect2(cargo-Vector2.ONE,Vector2.ONE*4),INK)
-				draw_rect(Rect2(cargo,Vector2.ONE*2),Color(game.data.resources[e.queue[i]].color))
 			draw_set_transform(Vector2.ZERO,0,Vector2.ONE)
+			for cargo in Conveyor.cargo(e):
+				_item(cargo.resource,r.get_center()+cargo.offset*unit,unit*cargo.size)
 		else:_sprite(e.kind,r,anim)
 		if e.job!=null:
 			var percent=clampf(1-e.job.remaining/game.recipe(e).cycle,0,1)
@@ -173,11 +181,9 @@ func _draw():
 			for n in range(1,4):draw_circle(start.lerp(finish,n/4.0),maxf(1,unit/48),Color("f4d487"))
 	if selected_id.is_empty():_corners(tile_rect(selection.x,selection.y).grow(-unit*0.03),Color("f4d487"))
 	for p in particles:
-		var t=clampf(p.age/0.65,0,1)
+		var t=clampf(p.age/p.duration,0,1)
 		var at=(camera+p.a.lerp(p.b,t)*unit).round()
-		var px=maxf(1,round(unit/32))
-		draw_rect(Rect2(at-Vector2.ONE*3*px,Vector2.ONE*6*px),INK)
-		draw_rect(Rect2(at-Vector2.ONE*2*px,Vector2.ONE*4*px),Color(game.data.resources[p.r].color))
+		_item(p.r,at,unit*0.46)
 	for p in sale_bubbles:
 		var at=camera+p.at*unit-Vector2(0,p.age*unit*0.35)
 		var font_size=maxi(12,int(unit*0.24));var text="+₩ "+RustFactory.money(p.cash)

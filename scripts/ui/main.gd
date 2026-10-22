@@ -8,6 +8,9 @@ const Overview=preload("res://scripts/ui/world_overview.gd")
 const Art=preload("res://scripts/ui/pixel_art.gd")
 const Opening=preload("res://scripts/ui/opening_ux.gd")
 const ProductionCard=preload("res://scripts/ui/production_card.gd")
+const Panels=preload("res://scripts/ui/paged_panels.gd")
+const FacilityTabs=preload("res://scripts/ui/facility_tabs.gd")
+const IncomeMeter=preload("res://scripts/ui/income_meter.gd")
 var game=Factory.new()
 var store=SaveStore.new()
 var map
@@ -50,6 +53,14 @@ var auto_checks=false
 var inspect_details=false
 var catalog_all=false
 var inventory_details=false
+var income_meter=IncomeMeter.new()
+var pages={}
+var build_page="facilities"
+var industry_page="research"
+var trade_page="offers"
+var inspector_page="improve"
+var panel_revision=0
+var panel_available=1.0
 
 func _ready():
 	auto_checks="--ui-check" in OS.get_cmdline_user_args()
@@ -67,7 +78,8 @@ func _ready():
 	var warehouse=_floating_button(header,"창고","inventory",func():show_tab("inventory"));warehouse.name="WarehouseButton"
 	sheet=Panel.new();add_child(sheet)
 	handle=_button(sheet,"",func():
-		if not drag_moved:sheet_fraction=0.48 if sheet_fraction==0 else 0.0;_layout())
+		if not drag_moved:
+			sheet_fraction=0.48 if sheet_fraction==0 else 0.0;_layout();_fit_sheet.call_deferred(panel_revision))
 	handle.gui_input.connect(_sheet_input)
 	scroll=ScrollContainer.new();sheet.add_child(scroll);scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
 	body=VBoxContainer.new();body.size_flags_horizontal=Control.SIZE_EXPAND_FILL;scroll.add_child(body)
@@ -143,7 +155,7 @@ func _label(parent,text="",large=false) -> Label:
 func _bind_label(parent,get_text:Callable,large=false) -> Label:
 	var label=_label(parent,str(get_text.call()),large);bindings.append(func():if is_instance_valid(label):label.text=str(get_text.call()));return label
 func _row() -> HBoxContainer:
-	var row=HBoxContainer.new();row.add_theme_constant_override("separation",int(10*scale_ui));body.add_child(row);return row
+	var row=HBoxContainer.new();row.add_theme_constant_override("separation",int(6*scale_ui));body.add_child(row);return row
 func _section(text):
 	var l=_label(body,text);l.add_theme_color_override("font_color",Color("84906f"));l.custom_minimum_size.y=36*scale_ui;l.vertical_alignment=VERTICAL_ALIGNMENT_BOTTOM
 func _cost(kind) -> String:
@@ -197,20 +209,25 @@ func _layout():
 	stage_label.position=Vector2(14,8)*u;stage_label.add_theme_font_size_override("font_size",int(10*u))
 	var warehouse=header.get_node("WarehouseButton");warehouse.custom_minimum_size=Vector2(64,64)*u
 	warehouse.position=Vector2(size.x-80*u,16*u);warehouse.size=Vector2(64,64)*u;_size_floating_button(warehouse,u)
-	var dock_width=minf(384*u,size.x-32*u)
+	var wide=size.x>size.y*1.3
+	var left_width=size.x*0.5 if wide else size.x
+	warehouse.position.x=left_width-80*u
+	var dock_width=minf(384*u,left_width-32*u)
 	nav.add_theme_constant_override("separation",int(8*u))
 	for child in nav.get_children():child.custom_minimum_size=Vector2(48,64)*u
-	nav.position=Vector2((size.x-dock_width)/2,size.y-84*u);nav.size=Vector2(dock_width,64*u)
+	nav.position=Vector2((left_width-dock_width)/2,size.y-84*u);nav.size=Vector2(dock_width,64*u)
 	for child in nav.get_children():_size_floating_button(child,u)
-	var width=minf(430*u,size.x-32*u) if sheet_fraction>0 else minf(234*u,size.x-32*u)
-	var available=maxf(56*u,size.y-216*u)
-	var height=56*u if sheet_fraction==0 else clampf(available*sheet_fraction,minf(180*u,available),available)
-	sheet.position=Vector2(size.x-width-16*u,nav.position.y-height-16*u);sheet.size=Vector2(width,height)
+	var card_width=minf(430*u,size.x*0.5-24*u) if wide else minf(430*u,size.x-32*u)
+	var width=card_width if sheet_fraction>0 else minf(234*u,card_width)
+	var available=maxf(48*u,size.y-(24 if wide else 216)*u)
+	panel_available=available
+	var height=48*u if sheet_fraction==0 else clampf(available*sheet_fraction,minf(180*u,available),available)
+	sheet.position=Vector2(size.x-width-16*u,size.y-height-12*u if wide else nav.position.y-height-16*u);sheet.size=Vector2(width,height)
 	sheet.add_theme_stylebox_override("panel",_box(Color("fff5d9"),12))
-	handle.custom_minimum_size=Vector2(48,48)*u;handle.position=Vector2.ZERO;handle.size=Vector2(width,56*u)
+	handle.custom_minimum_size=Vector2(48,48)*u;handle.position=Vector2.ZERO;handle.size=Vector2(width,48*u)
 	for state in ["normal","hover","pressed","focus"]:handle.add_theme_stylebox_override(state,StyleBoxEmpty.new())
-	scroll.position=Vector2(14,60)*u;scroll.size=Vector2(width-28*u,maxf(0,height-74*u));scroll.visible=sheet_fraction>0
-	body.add_theme_constant_override("separation",int(10*u))
+	scroll.position=Vector2(14,52)*u;scroll.size=Vector2(width-28*u,maxf(0,height-60*u));scroll.visible=sheet_fraction>0
+	body.add_theme_constant_override("separation",int(6*u))
 	map_buttons.add_theme_constant_override("separation",int(8*u))
 	for b in map_buttons.get_children():b.custom_minimum_size=Vector2(48,48)*u
 	map_buttons.position=Vector2(size.x-64*u,sheet.position.y-176*u);map_buttons.size=Vector2(48,160)*u;map_buttons.visible=sheet_fraction==0
@@ -225,7 +242,7 @@ func _sheet_input(e):
 		var dy=drag_start-get_global_mouse_position().y
 		if abs(dy)>6*scale_ui:
 			drag_moved=true
-			sheet_fraction=clampf((drag_initial+dy)/maxf(1,size.y-216*scale_ui),0.0,0.8)
+			sheet_fraction=clampf((drag_initial+dy)/maxf(1,panel_available),0.0,1.0)
 			if sheet_fraction<0.2:sheet_fraction=0
 			_layout()
 func _layout_title():
@@ -292,6 +309,13 @@ func _rebuild():
 		"work":world_tools.panel()
 	scroll.set_deferred("scroll_vertical",previous)
 	_layout_title();_refresh()
+	panel_revision+=1
+	_fit_sheet.call_deferred(panel_revision)
+func _fit_sheet(revision):
+	await get_tree().process_frame
+	if revision!=panel_revision or sheet_fraction<=0 or drag_sheet:return
+	sheet_fraction=clampf((body.get_combined_minimum_size().y+60*scale_ui)/maxf(1,panel_available),0.01,1.0)
+	_layout()
 func _facility():
 	var e=game.state.entities.get(selected,{})
 	if e.is_empty():
@@ -300,6 +324,8 @@ func _facility():
 		if not id.is_empty():_district(id)
 		_button(body,"시설 건설",func():show_tab("build"))
 		return
+	if game.world_mode() and (inspect_details or game.is_project(e.kind) or e.kind=="launchpad"):
+		FacilityTabs.show(self,e);return
 	if game.world_mode() and not inspect_details and not game.is_project(e.kind) and e.kind!="launchpad":ProductionCard.show(self,e);return
 	if game.world_mode():
 		var back=_row();_spacer(back);_button(back,"접기",func():inspect_details=false;_rebuild())
@@ -376,49 +402,11 @@ func _choice(title,resources,current,action:Callable):
 		if r==current or (current==null and r==""):option.select(i)
 	option.item_selected.connect(func(index):action.call(resources[index]))
 func _build_list():
-	if game.world_mode():
-		var row=_row();_spacer(row)
-		if game.recorded("first_sawmill"):
-			_button(row,"컨베이어 연결",func():world_tools.begin("route"))
-			_button(row,"부지 정리",func():world_tools.begin("clear"))
-	for kind in Opening.catalog(game,catalog_all):
-		var id=kind;var f=game.data.facilities[kind];var known=game.unlocked(kind)
-		var text=f.name+"\n"+_cost(kind) if known else "?"
-		if known and game.is_project(kind):text+="\n"+_stock_text(game.data.projects[kind].materials)
-		var button=_button(body,text,func():build_kind=id;map.building=id;sheet_fraction=0;_layout())
-		button.disabled=not known;button.alignment=HORIZONTAL_ALIGNMENT_RIGHT
-	if not game.state.entities.is_empty():
-		var row=_row();_spacer(row);_button(row,"주요 시설" if catalog_all else "전체 시설",func():catalog_all=not catalog_all;_rebuild())
+	Panels.build(self)
 func _inventory():
-	if game.world_mode():_section("도시 자재 · 창고 합계")
-	if Opening.feature(game,"trade"):_button(body,"주문 출하 →",func():show_tab("trade"))
-	for r in game.data.resources:
-		if not inventory_details and not game.known_resource(r):continue
-		var resource=r;var row=_row();_label(row,_resource_name(r));_spacer(row);_bind_label(row,func():return str(int(game.stock(resource))) if game.known_resource(resource) else "?")
-		if not inventory_details:continue
-		var selector=OptionButton.new();selector.custom_minimum_size=Vector2(125,48)*scale_ui;row.add_child(selector)
-		var choices=[0,20,50,100,200,500,1000,-1]
-		if game.state.factory.reserves[r] not in choices:choices.append(game.state.factory.reserves[r])
-		for i in range(choices.size()):selector.add_item("판매 안 함" if choices[i]==-1 else "%d개 보관"%choices[i]);selector.set_item_metadata(i,choices[i])
-		for i in range(choices.size()):
-			if choices[i]==game.state.factory.reserves[r]:selector.select(i)
-		selector.disabled=not game.known_resource(r)
-		selector.item_selected.connect(func(index):_command({"type":"setReserve","resource":resource,"quantity":selector.get_item_metadata(index)}))
-	var row=_row();_spacer(row);_button(row,"재고만 보기" if inventory_details else "판매 / 보관 설정",func():inventory_details=not inventory_details;_rebuild())
+	Panels.inventory(self)
 func _trade_panel():
-	var t=game.trade();var active=t.active
-	_button(body,"← 창고",func():show_tab("inventory"))
-	_bind_label(body,func():return "출하 %d회 · ₩ %s"%[t.completed,Factory.money(t.rewardEarned)])
-	if t.lastOfferId!=null:
-		var repeat=CheckButton.new();repeat.text="같은 주문 자동 반복";repeat.button_pressed=t.repeat;repeat.custom_minimum_size.y=48*scale_ui;body.add_child(repeat);repeat.toggled.connect(func(value):_command({"type":"setTradeRepeat","enabled":value}))
-	if active!=null:
-		_label(body,"%s %d개 · ₩ %s"%[_resource_name(active.resource),active.quantity,Factory.money(active.reward)],true)
-		_bind_label(body,func():return "납품 %d초"%ceil(active.departureS) if active.loaded==active.quantity else "상차 %d / %d · 재고 대기 %d"%[active.loaded,active.quantity,active.quantity-active.loaded-active.reserved])
-		_action("출하 취소 · 재고 반환",{"type":"cancelOrder"})
-	else:_bind_label(body,func():return "다음 주문 %d초"%ceil(t.cooldownS) if t.cooldownS>0 else "초과 재고 자동 상차")
-	for offer in game.offers():
-		var quote=offer
-		_action("%s %d개 · ₩ %s"%[_resource_name(quote.resource),quote.quantity,Factory.money(quote.reward)],{"type":"takeOrder","offerId":quote.id},active!=null or t.cooldownS>0)
+	Panels.trade(self)
 func _district(id):
 	if not game.district_known(id):_label(body,"?");return
 	var d=game.data.districts[id];var n=game.state.districts[id].size;var offer=game.expansion(id)
@@ -428,6 +416,7 @@ func _district(id):
 func _project_effect(kind):
 	return "판매 단가 +25%" if game.world_mode() and kind=="cabin" else game.data.projects[kind].effect
 func _industry():
+	if game.world_mode():Panels.industry(self);return
 	if not game.state.unlocks.get("smelting",false):
 		if game.stage_index()>=1:
 			var row=HFlowContainer.new();row.size_flags_horizontal=Control.SIZE_EXPAND_FILL;body.add_child(row)
@@ -449,16 +438,7 @@ func _industry():
 		button.disabled=not enabled
 	if game.state.unlocks.offline:_label(body,"방치 생산 · 최대 2시간")
 func _records():
-	_label(body,"누적 수입 ₩ "+Factory.money(game.state.totals.earned),true)
-	_label(body,"도시 가동 %d분"%floor(game.state.clock.elapsedS/60))
-	var entries=game.state.records.duplicate();entries.reverse()
-	for entry in entries:
-		var text=entry.type
-		if text.begins_with("first_"):text=game.data.facilities.get(text.trim_prefix("first_"),{}).get("name",{"first_automation":"첫 자동화","first_power":"첫 전력 생산","first_auto_sale":"첫 자동 판매","first_shipment":"첫 주문 출하","first_launch":"첫 로켓 발사","first_clearing":"첫 부지 정리","first_route":"첫 컨베이어 연결"}.get(text,text))
-		if text.begins_with("complete_"):text=game.data.facilities.get(text.trim_prefix("complete_"),{}).get("name","도시 건물")+" 완공"
-		if entry.type=="open_world":text="큰 월드 이전"
-		if entry.type.begins_with("stage_"):text=game.data.stageNames[game.data.stages.find(entry.type.trim_prefix("stage_"))]
-		_label(body,"%d분  %s"%[floor(entry.atS/60),text])
+	Panels.records(self)
 func _settings():
 	if not game.world_mode():
 		_button(body,"큰 월드로 이전",func():confirm("자금·시설·재고를 보존해 큰 월드로 이전해요. 공장 원료는 실제 운송망을 통해 공급해요.",func():_save();_command({"type":"migrateWorld"});_focus_city();show_tab("map")))
@@ -469,10 +449,9 @@ func _settings():
 func _refresh():
 	cash_label.text="₩ "+Factory.money(game.state.cash)
 	stage_label.text="RUST CITY · "+game.data.stageNames[game.stage_index()]
-	var earned=0.0
-	for sale in game.state.recentSales:earned+=sale.cash
-	income_label.text="₩ %s / 분"%Factory.money(earned*60/maxf(1,minf(60,game.state.clock.elapsedS)))
-	if game.stage_index()>=3:income_label.text+="   전력 %.0f / %.0f"%[game.state.power.generation,game.state.power.demand]
+	var rate=income_meter.rate(game)
+	income_label.text="판매 평균 · 집계 중" if rate<0 else "판매 평균 ₩ %s / 분"%Factory.money(rate)
+	if game.stage_index()>=3:stage_label.text="RUST CITY · 전력 %.0f / %.0f"%[game.state.power.generation,game.state.power.demand]
 	for binding in bindings:binding.call()
 	var warehouse=header.get_node("WarehouseButton");warehouse.visible=Opening.feature(game,"inventory")
 	overview.visible=game.world_mode() and Opening.feature(game,"overview")
@@ -553,9 +532,9 @@ func _ui_test():
 	ok=ok and _signature()!=previous_signature
 	_rebuild()
 	for row in body.get_children():
-		if row is HBoxContainer:
+		if row is HBoxContainer or row is GridContainer:
 			for node in row.get_children():
-				if node is Button:ok=ok and not node.disabled
+				if node is Button and node.has_meta("offer"):ok=ok and not node.disabled
 	game.state.totals.produced.plank=0
 	show_tab("build");previous_signature=layout_signature
 	game.state.totals.produced.plank=20
