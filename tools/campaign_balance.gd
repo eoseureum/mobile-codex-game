@@ -3,7 +3,7 @@ extends SceneTree
 const Factory=preload("res://scripts/core/factory.gd")
 const World=preload("res://scripts/core/world_map.gd")
 const Store=preload("res://scripts/core/save_store.gd")
-const PREFIX="res://docs/balance/2026-10-22-campaign"
+const PREFIX="res://docs/balance/2026-10-22-opening-prices"
 var g
 var sources={}
 var actions=[]

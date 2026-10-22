@@ -15,7 +15,7 @@ func _initialize():
 	var junction=g.create_entity("belt",66,66,{"direction":1})
 	var depot=g.create_entity("warehouse",67,66,{"autoSell":false})
 	var quote=World.route_quote(g,point(64,66),point(66,66))
-	check(quote.ok and quote.cells.size()==1 and quote.cash==100,"joining an existing trunk only charges the new belt")
+	check(quote.ok and quote.cells.size()==1 and quote.cash==g.data.facilities.belt.cost,"joining an existing trunk only charges the new belt")
 	check(g.command({"type":"buildRoute","from":point(64,66),"to":point(66,66)})=="OK","a paid branch joins an existing conveyor")
 	var cash=g.state.cash;var n=g.state.entities.size()
 	check(g.command({"type":"buildRoute","from":point(66,65),"to":point(66,66)})=="OK","adjacent belts can be joined by turning the source")
