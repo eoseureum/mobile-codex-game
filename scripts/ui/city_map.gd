@@ -18,6 +18,11 @@ var pressed=false
 var dragging=false
 var press_at=Vector2.ZERO
 var last_at=Vector2.ZERO
+var touch_points={}
+var active_fingers={}
+var touch_origin=Vector2.ZERO
+var touch_moved=false
+var suppress_touch_tap=false
 var particles=[]
 var opportunity={}
 var sale_bubbles=[]
@@ -49,12 +54,64 @@ func clamp_camera():
 	camera.x=clampf(camera.x,size.x-World.SIZE*tile_size*zoom-pad,pad)
 	camera.y=clampf(camera.y,size.y-World.SIZE*tile_size*zoom-pad,pad)
 func zoom_by(delta):
-	var old=zoom
-	zoom=clampf(zoom+delta,0.45,1.7)
-	camera=(size/2-(size/2-camera)*zoom/old).round()
-	clamp_camera()
-	queue_redraw()
+	_zoom_between(size/2,size/2,zoom+delta)
+func _zoom_between(before:Vector2,after:Vector2,value:float):
+	if not is_finite(value):return
+	var next=clampf(value,0.45,1.7)
+	camera=after-(before-camera)*next/zoom
+	zoom=next;clamp_camera();queue_redraw()
+func _input(e):
+	# Continue map gestures over floating controls, but start them only on the map.
+	if e is InputEventScreenTouch:
+		if e.pressed:
+			active_fingers[e.index]=true
+			if active_fingers.size()>1 and not touch_points.is_empty():suppress_touch_tap=true
+		else:
+			active_fingers.erase(e.index)
+			if touch_points.has(e.index):
+				_end_touch(e.index,get_global_transform_with_canvas().affine_inverse()*e.position,e.canceled)
+				get_viewport().set_input_as_handled()
+	elif e is InputEventScreenDrag and touch_points.has(e.index):
+		_move_touch(e.index,get_global_transform_with_canvas().affine_inverse()*e.position)
+		get_viewport().set_input_as_handled()
+func _begin_touch(index,point):
+	if touch_points.is_empty():
+		touch_origin=point;touch_moved=false;suppress_touch_tap=active_fingers.size()>1
+		pressed=false;dragging=false
+	else:suppress_touch_tap=true
+	touch_points[index]=point
+func _move_touch(index,point):
+	if touch_points.size()>=2:
+		var pair=touch_points.keys();var a=touch_points[pair[0]];var b=touch_points[pair[1]]
+		var before=(a+b)*0.5;var distance=a.distance_to(b)
+		touch_points[index]=point;a=touch_points[pair[0]];b=touch_points[pair[1]]
+		var next=zoom*a.distance_to(b)/distance if distance>1 else zoom
+		_zoom_between(before,(a+b)*0.5,next)
+	else:
+		var movement=point-touch_points[index]
+		if not touch_moved and point.distance_to(touch_origin)>8*tile_size/96.0:
+			touch_moved=true;movement=point-touch_origin
+		if touch_moved:camera+=movement;clamp_camera();queue_redraw()
+		touch_points[index]=point
+func _end_touch(index,point,canceled):
+	var tap=touch_points.size()==1 and not suppress_touch_tap and not touch_moved and not canceled and point.distance_to(touch_origin)<=8*tile_size/96.0
+	touch_points.erase(index)
+	if tap:
+		var world=(point-camera)/(tile_size*zoom)
+		tile_pressed.emit(Vector2i(floori(world.x),floori(world.y)))
+	if touch_points.is_empty():suppress_touch_tap=false;touch_moved=false
+	elif touch_points.size()==1:touch_origin=touch_points.values()[0];touch_moved=true
+func _notification(what):
+	if what in [NOTIFICATION_APPLICATION_FOCUS_OUT,NOTIFICATION_WM_WINDOW_FOCUS_OUT]:
+		touch_points.clear();active_fingers.clear();pressed=false;dragging=false;suppress_touch_tap=true
 func _gui_input(e):
+	if e is InputEventScreenTouch and e.pressed:
+		_begin_touch(e.index,e.position);accept_event();return
+	if e is InputEventMagnifyGesture:
+		if touch_points.is_empty():_zoom_between(e.position,e.position,zoom*e.factor)
+		pressed=false;accept_event();return
+	if e is InputEventMouse and (e.device==InputEvent.DEVICE_ID_EMULATION or not touch_points.is_empty()):
+		accept_event();return
 	if e is InputEventMouseButton:
 		if e.button_index==MOUSE_BUTTON_WHEEL_UP and e.pressed:zoom_by(0.1);accept_event()
 		if e.button_index==MOUSE_BUTTON_WHEEL_DOWN and e.pressed:zoom_by(-0.1);accept_event()
