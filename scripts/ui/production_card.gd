@@ -1,6 +1,7 @@
 extends RefCounted
 const Art=preload("res://scripts/ui/pixel_art.gd")
 const Panels=preload("res://scripts/ui/paged_panels.gd")
+const Facilities=preload("res://scripts/ui/facility_tabs.gd")
 const Opening=preload("res://scripts/ui/opening_ux.gd")
 static func picture(ui,parent,kind):
 	var p=TextureRect.new();p.texture=Art.texture(kind);p.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
@@ -25,7 +26,7 @@ static func recipe_row(ui,e):
 	ui._label(row,"→")
 	for r in f.output:resource(ui,row,r,f.output[r])
 	if e.id==game.state.factory.get("pioneerForestId","") and not game.recorded("first_auto_sale"):
-		ui._label(row,"→");picture(ui,row,"icon_coin");ui._label(row,game.money(game.price("log")))
+		ui._label(row,"→");picture(ui,row,"icon_coin");ui._label(row,game.money(game.sale_price(e,"log")))
 	if row is HBoxContainer:ui._spacer(row)
 	ui._bind_label(row,func():
 		var rate=game.speed(e)*(game.state.power.ratio if f.power>0 else 1.0)
@@ -49,14 +50,20 @@ static func show(ui,e):
 			ui._bind_label(row,func():return "보관 %d / %d"%[e.inventory.get(r,0),int(game.state.factory.reserves[r])] if e.autoSell and game.state.factory.reserves[r]>0 else "재고 %d"%e.inventory.get(r,0));ui._spacer(row)
 			picture(ui,row,"icon_coin");ui._bind_label(row,func():return game.money(game.sale_price(e,r)) if e.autoSell and game.state.factory.reserves[r]>=0 else "—")
 		Panels.pager(ui,"depot",resources.size(),2,"설정",func():ui.inspect_details=true;ui.inspector_page="flow";ui._rebuild())
+		Facilities.controls(ui,e)
 		return
 	var suggestion=Opening.suggestion(game,e)
 	ui.map.opportunity=suggestion
-	if suggestion.get("kind","")=="sawmill":
-		var future=ui._row();picture(ui,future,"sawmill");ui._label(future,"→")
-		resource(ui,future,"plank",3);ui._label(future,"→");picture(ui,future,"icon_coin");ui._label(future,game.money(3*game.price("plank")))
+	if e.kind=="forest" and e.id==game.state.factory.get("pioneerForestId","") and not game.recorded("first_sawmill"):
+		var early=ui._row();ui._spacer(early)
+		var level=int(e.level);var income=int(e.get("incomeLevel",0))
+		var speed_button=ui._button(early,"%.1f → %.1f초\n₩ %s"%[f.cycle/game.speed(e),f.cycle/(game.speed(e)+0.12),game.money(f.upgradeCosts[mini(level-1,f.upgradeCosts.size()-1)])],func():ui._command({"type":"upgrade","entityId":e.id}))
+		var price_button=ui._button(early,"단가 +%d%% → +%d%%\n₩ %s"%[income*12,(income+1)*12,game.money(f.incomeCosts[mini(income,9)])],func():ui._command({"type":"upgradeIncome","entityId":e.id}))
+		ui.bindings.append(func():
+			if is_instance_valid(speed_button):speed_button.disabled=level>=f.maxLevel or game.state.cash<f.upgradeCosts[mini(level-1,f.upgradeCosts.size()-1)]
+			if is_instance_valid(price_button):price_button.disabled=income>=10 or game.state.cash<f.incomeCosts[mini(income,9)])
+	Facilities.controls(ui,e)
 	var row=ui._row()
-	ui._button(row,"설정",func():ui.inspect_details=true;ui.inspector_page="improve";ui._rebuild())
 	ui._spacer(row)
 	if not suggestion.is_empty():
 		var label=game.data.facilities[suggestion.kind].name+" + 연결\n₩ "+game.money(suggestion.cash)

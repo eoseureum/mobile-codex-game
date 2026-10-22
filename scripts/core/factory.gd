@@ -6,8 +6,11 @@ const WorldRules=preload("res://scripts/core/world_rules.gd")
 const DT = 0.25
 const MAX_MONEY = 9007199254740991
 const DIRS = [Vector2i(0,-1), Vector2i(1,0), Vector2i(0,1), Vector2i(-1,0)]
-var data: Dictionary
-var state: Dictionary
+var modern_data: Dictionary
+var legacy_data: Dictionary
+var state: Dictionary = {}
+var data: Dictionary:
+	get: return modern_data if state.has("world") else legacy_data
 var transfers: Array = []
 var sales: Array = []
 var _indexed_source={}
@@ -16,7 +19,8 @@ var _positions={}
 var _effects_cache={}
 
 func _init():
-	data = JSON.parse_string(FileAccess.get_file_as_string("res://data/catalog.json"))
+	modern_data = JSON.parse_string(FileAccess.get_file_as_string("res://data/catalog.json"))
+	legacy_data = JSON.parse_string(FileAccess.get_file_as_string("res://data/legacy_catalog.json"))
 	fresh()
 
 func fresh(now_ms = -1,open_world=true,seed_value=-1):
@@ -34,7 +38,7 @@ func storage_capacity(e) -> int:return 200*int(e.level)
 func construction_materials(kind) -> Dictionary:
 	if world_mode() and state.factory.get("startMode","")=="empty":
 		if kind=="forest" and state.factory.pioneerForestId.is_empty():return {}
-		if kind=="sawmill" and not recorded("first_sawmill"):return {}
+		if kind=="sawmill" and not has_facility("sawmill"):return {}
 	return data.facilities[kind].materials
 func sale_price(e,r) -> int:return int(floor(price(r)*(1+0.12*e.get("incomeLevel",0))*effects().operating)) if world_mode() else price(r)
 
@@ -67,6 +71,10 @@ func recorded(kind) -> bool:
 
 func stage_index() -> int: return data.stages.find(state.stage)
 func is_project(kind) -> bool: return data.projects.has(kind)
+func has_facility(kind) -> bool:
+	for e in state.entities.values():
+		if e.kind==kind:return true
+	return false
 func transport(e) -> bool: return e.kind in ["belt","splitter"]
 func speed(e) -> float: return 1.0+0.12*(e.level-1)+0.08*e.get("managerLevel",0)
 func capacity(e) -> int: return int(20*e.level)
@@ -114,7 +122,7 @@ func create_entity(kind,x,y,extra = {}) -> Dictionary:
 
 func unlocked(kind) -> bool:
 	if not data.facilities.has(kind) or stage_index()<data.facilities[kind].tier: return false
-	if world_mode() and state.factory.get("startMode","")=="empty" and state.factory.pioneerForestId.is_empty():return kind=="forest"
+	if world_mode() and state.factory.get("startMode","")=="empty" and state.factory.pioneerForestId.is_empty() and state.entities.is_empty():return kind=="forest"
 	if kind=="sawmill": return world_mode() or state.districts.forest.size>=2
 	if kind=="generator": return produced("wire")>=10
 	if is_project(kind):
@@ -242,6 +250,7 @@ func command(c: Dictionary) -> String:
 				if e.kind in ["belt","splitter","launchpad"] or is_project(e.kind) or not recorded("first_auto_sale") or e.get("managerLevel",0)>=3: return "LOCKED"
 				cash=f.managerCosts[int(e.get("managerLevel",0))]
 				mats={"plank":3}
+			if world_mode():mats={}
 			if not affordable(cash,mats): return "INSUFFICIENT_CASH" if state.cash<cash else "INSUFFICIENT_RESOURCE"
 			pay(cash,mats)
 			var field="level" if type=="upgrade" else "incomeLevel" if type=="upgradeIncome" else "managerLevel"
@@ -334,7 +343,7 @@ func effects() -> Dictionary:
 	if world_mode():_effects_cache=result
 	return result
 
-func income_facility(e) -> bool: return (e.kind=="market" or (e.kind=="warehouse" and e.autoSell)) if world_mode() else data.facilities[e.kind].cycle>0 and not data.facilities[e.kind].output.is_empty()
+func income_facility(e) -> bool: return (e.kind=="market" or (e.kind=="warehouse" and e.autoSell) or (e.kind=="forest" and e.id==state.factory.get("pioneerForestId",""))) if world_mode() else data.facilities[e.kind].cycle>0 and not data.facilities[e.kind].output.is_empty()
 func income_per_batch(e) -> float:
 	var total=0.0
 	var output=recipe(e).output
@@ -395,17 +404,18 @@ func trade() -> Dictionary:
 	if not state.factory.has("trade"): state.factory.trade={"active":null,"completed":0,"rewardEarned":0,"cooldownS":0.0,"repeat":false,"lastOfferId":null}
 	return state.factory.trade
 
-func quotes(r,bonus = -1.0) -> Array:
+func quotes(r,bonus = -1.0,historical=false) -> Array:
 	if not data.resources.has(r): return []
 	if bonus<0: bonus=effects().shipment
-	var base=maxi(1,int(floor(32.0/data.resources[r].legacyPrice+0.5)))
+	var resources=legacy_data.resources if historical else data.resources
+	var base=maxi(1,int(floor(32.0/resources[r].legacyPrice+0.5)))
 	var quantities=[]
 	var result=[]
 	for n in [base,int(ceil(base*1.5)),int(ceil(base*2.25))]:
 		if n not in quantities: quantities.append(n)
 	for i in range(quantities.size()):
 		var n=quantities[i]
-		result.append({"id":"%s:%d"%[r,n],"resource":r,"quantity":n,"reward":ceil(price(r)*n*[1.3,1.4,1.5][i]*bonus),"bonus":bonus})
+		result.append({"id":"%s:%d"%[r,n],"resource":r,"quantity":n,"reward":ceil(resources[r].price*n*[1.3,1.4,1.5][i]*bonus),"bonus":bonus})
 	return result
 
 func offers() -> Array:
@@ -698,3 +708,14 @@ static func money(value) -> String:
 			var divisor=1000.0 if pair[1]=="K" else pair[0]
 			return ("%.2f" % (floor(n/divisor*100)/100)).trim_suffix("0").trim_suffix("0").trim_suffix(".")+pair[1]
 	return str(int(n))
+
+func demolition_refund(e) -> int:
+	var refund=int(floor(e.investedCash*0.5))
+	if world_mode() and e.kind=="forest":
+		var others=state.entities.values().filter(func(other):return other.kind=="forest" and other.id!=e.id)
+		if others.is_empty():
+			# Original populated saves received this camp for free. Recover its
+			# construction value once; every replacement is paid normally.
+			var basis=int(data.facilities.forest.cost) if e.get("starter",false) and e.investedCash==0 else int(e.investedCash)
+			refund=mini(basis,maxi(refund,int(data.facilities.forest.cost)))
+	return refund

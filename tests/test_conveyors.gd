@@ -44,10 +44,18 @@ func _initialize():
 	check(View.inputs(g,junction)==[0,3],"junction drawing recognizes north and west input arms")
 	junction.level=2;junction.queue=["log","coal","copper","stone","plank","wire","iron","copperIngot"]
 	var cargo=View.cargo(junction)
-	check(cargo.size()==3 and junction.queue.size()==8,"a readable preview shows front cargo without discarding hidden queue items")
+	check(cargo.size()==8 and junction.queue.size()==8,"all eight distinct queued resources remain visible")
 	var positions={};var inside=true
 	for i in range(cargo.size()):
-		positions[cargo[i].offset]=true;inside=inside and abs(cargo[i].offset.x)<=0.4 and abs(cargo[i].offset.y)<=0.2
-		check(cargo[i].resource==junction.queue[i],"cargo sprite follows actual queue resource")
-	check(positions.size()==3 and inside,"front cargo fits in separate visible positions")
+		positions[cargo[i].offset]=true;inside=inside and abs(cargo[i].offset.x)<=0.4 and abs(cargo[i].offset.y)<=0.4
+		check(cargo[i].resource==junction.queue[i] and cargo[i].count==1,"cargo sprite follows actual queue resource and quantity")
+	check(positions.size()==8 and inside,"every distinct cargo group fits in a separate position")
+	junction.queue=["log"]
+	check(View.cargo(junction).size()==1 and View.cargo(junction)[0].count==1,"one queued unit draws exactly one icon")
+	junction.queue=["log","log","coal","log"]
+	cargo=View.cargo(junction)
+	check(cargo.size()==2 and cargo[0].count==3 and cargo[1].count==1,"repeated resources use one quantity badge per resource")
+	cargo=View.cargo(junction,{"log":2,"coal":1})
+	check(cargo.size()==1 and cargo[0].resource=="log" and cargo[0].count==1,"incoming flight units are removed before grouping stationary cargo")
+	check(View.cargo(junction,{"log":8,"coal":2}).is_empty() and junction.queue.size()==4,"incoming subtraction never invents cargo or mutates the queue")
 	print("CONVEYORS: %d checks, %d failures"%[checks,failures]);quit(1 if failures else 0)

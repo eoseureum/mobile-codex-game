@@ -13,11 +13,11 @@ func _initialize():
 	var Motion=load("res://scripts/ui/facility_motion.gd")
 	var g=Factory.new();Fixture.connected(g);g.advance(0.5)
 	var normal=Motion.phase(g,g.state.entities.e1)
-	check(is_equal_approx(normal,0.125),"four second logging advances one eighth of its animation in half a second")
+	check(is_equal_approx(normal,0.5/g.data.facilities.forest.cycle),"logging animation advances in proportion to its actual recipe")
 	Fixture.connected(g);g.state.entities.e1.level=5;g.advance(0.5)
 	check(is_equal_approx(Motion.phase(g,g.state.entities.e1),normal*g.speed(g.state.entities.e1)),"production upgrade speeds animation by the same ratio as crafting")
 	var prior=Motion.phase(g,g.state.entities.e1);g.advance(0.125)
-	check(is_equal_approx(Motion.phase(g,g.state.entities.e1)-prior,0.125*g.speed(g.state.entities.e1)/4.0),"animation interpolates smoothly between simulation ticks")
+	check(is_equal_approx(Motion.phase(g,g.state.entities.e1)-prior,0.125*g.speed(g.state.entities.e1)/g.data.facilities.forest.cycle),"animation interpolates smoothly between simulation ticks")
 	g.state.entities.e1.paused=true
 	check(Motion.phase(g,g.state.entities.e1)<0,"paused facility has no running animation")
 	Fixture.connected(g)

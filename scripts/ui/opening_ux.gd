@@ -18,12 +18,12 @@ static func catalog(game,all=false) -> Array:
 		if game.state.factory.has("startMode") and game.data.facilities[kind].tier>0 and not game.recorded("first_auto_sale"):continue
 		result.append(kind)
 	if game.stage_index()>=4:result.append("splitter")
-	var preferred="sawmill" if not game.recorded("first_sawmill") else "warehouse" if not game.recorded("first_warehouse") else "mine" if game.stage_index()>=1 and not game.recorded("first_mine") else ""
+	var preferred="sawmill" if not game.has_facility("sawmill") else "warehouse" if not game.has_facility("warehouse") else "mine" if game.stage_index()>=1 and not game.recorded("first_mine") else ""
 	if preferred in result:result.erase(preferred);result.push_front(preferred)
 	return result
 static func suggestion(game,e) -> Dictionary:
 	if not game.world_mode() or e.is_empty():return {}
-	var kind="sawmill" if e.kind=="forest" and not game.recorded("first_sawmill") else "warehouse" if e.kind=="sawmill" and not game.recorded("first_warehouse") else ""
+	var kind="sawmill" if e.kind=="forest" and not game.has_facility("sawmill") else "warehouse" if e.kind=="sawmill" and not game.has_facility("warehouse") else ""
 	if kind.is_empty():return {}
 	for offset in [Vector2i(2,0),Vector2i(0,2),Vector2i(0,-2),Vector2i(-2,0),Vector2i(3,0),Vector2i(0,3),Vector2i(0,-3),Vector2i(-3,0)]:
 		var q=World.linked_quote(game,e.id,kind,{"x":int(e.x)+offset.x,"y":int(e.y)+offset.y})

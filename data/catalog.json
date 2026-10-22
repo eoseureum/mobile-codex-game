@@ -7,7 +7,7 @@
         "plank": 5
       },
       "tier": 0,
-      "cycle": 4,
+      "cycle": 6,
       "input": {},
       "output": {
         "log": 1
@@ -16,41 +16,41 @@
       "icon": "tree",
       "maxLevel": 20,
       "upgradeCosts": [
-        800,
-        1075,
-        1450,
-        1950,
-        2625,
-        3550,
-        4775,
-        6450,
-        8700,
-        11750,
-        15850,
-        21400,
-        28875,
-        38975,
-        52600,
-        71000,
-        95850,
-        129400,
-        174700,
-        235850
+        120,
+        170,
+        240,
+        345,
+        490,
+        695,
+        985,
+        1395,
+        1985,
+        2815,
+        4000,
+        5680,
+        8065,
+        11455,
+        16265,
+        23095,
+        32795,
+        46570,
+        66125,
+        93900
       ],
       "upgradeMaterials": {
         "plank": 5
       },
       "incomeCosts": [
-        350,
-        475,
-        625,
-        850,
-        1125,
-        1525,
-        2050,
-        2775,
-        3725,
-        5050
+        75,
+        110,
+        160,
+        230,
+        330,
+        480,
+        695,
+        1010,
+        1465,
+        2125
       ],
       "managerCosts": [
         950,
@@ -66,7 +66,7 @@
         "plank": 6
       },
       "tier": 0,
-      "cycle": 3.5,
+      "cycle": 7.0,
       "input": {
         "log": 1
       },
@@ -349,7 +349,7 @@
         "plank": 6
       },
       "tier": 1,
-      "cycle": 5,
+      "cycle": 5.5,
       "input": {},
       "output": {
         "copper": 1
@@ -409,7 +409,7 @@
         "plank": 6
       },
       "tier": 2,
-      "cycle": 4,
+      "cycle": 4.4,
       "input": {
         "copper": 1,
         "coal": 1
@@ -473,7 +473,7 @@
         "plank": 6
       },
       "tier": 2,
-      "cycle": 4,
+      "cycle": 4.4,
       "input": {
         "copperIngot": 1
       },
@@ -536,7 +536,7 @@
         "wire": 10
       },
       "tier": 2,
-      "cycle": 10,
+      "cycle": 20,
       "input": {
         "coal": 1
       },
@@ -597,7 +597,7 @@
         "wire": 5
       },
       "tier": 3,
-      "cycle": 5,
+      "cycle": 5.5,
       "input": {
         "iron": 2,
         "coal": 1
@@ -661,7 +661,7 @@
         "wire": 10
       },
       "tier": 3,
-      "cycle": 6,
+      "cycle": 6.6,
       "input": {
         "ironIngot": 2,
         "plank": 2
@@ -725,7 +725,7 @@
         "plank": 20
       },
       "tier": 4,
-      "cycle": 6,
+      "cycle": 6.6,
       "input": {
         "ironIngot": 2,
         "stone": 3,
@@ -790,7 +790,7 @@
         "wire": 20
       },
       "tier": 5,
-      "cycle": 7,
+      "cycle": 7.7,
       "input": {
         "wire": 3,
         "copperIngot": 1,
@@ -855,7 +855,7 @@
         "structure": 10
       },
       "tier": 5,
-      "cycle": 8,
+      "cycle": 8.8,
       "input": {
         "machinePart": 2,
         "copperIngot": 1
@@ -919,7 +919,7 @@
         "copperIngot": 10
       },
       "tier": 5,
-      "cycle": 7,
+      "cycle": 7.7,
       "input": {
         "coal": 3,
         "wire": 1
@@ -1197,7 +1197,7 @@
   "resources": {
     "log": {
       "name": "통나무",
-      "price": 50,
+      "price": 35,
       "color": "#bb8b55",
       "legacyPrice": 2
     },

@@ -22,7 +22,7 @@ static func pioneer_sale(game,e):
 	# A partial line still earns enough to buy its missing shipping equipment.
 	if linked and (game.recorded("first_auto_sale") or int(e.pioneerCycles)%2==0):return
 	game.add(e.outputs,"log",-1);game.add(game.state.totals.sold,"log",1)
-	game.sale(game.credit(game.price("log")),"market",e.id)
+	game.sale(game.credit(game.sale_price(e,"log")),"market",e.id)
 static func stock(game,r) -> int:
 	var n=int(game.state.bag.get(r,0))
 	for e in game.state.entities.values():
@@ -101,7 +101,7 @@ static func command(game,c:Dictionary) -> String:
 				for cell in linked.cells:game.create_entity("belt",cell.x,cell.y,{"direction":cell.direction,"investedCash":game.data.facilities.belt.cost})
 				game.event("first_route")
 		"clearArea","buildRoute":
-			if game.state.factory.get("startMode","")=="empty" and game.state.factory.pioneerForestId.is_empty():return "LOCKED"
+			if game.state.factory.get("startMode","")=="empty" and game.state.factory.pioneerForestId.is_empty() and game.state.entities.is_empty():return "LOCKED"
 			var quote=World.clear_quote(game,c.get("from"),c.get("to")) if c.type=="clearArea" else World.route_quote(game,c.get("from"),c.get("to"),c.get("clear",false))
 			if not quote.ok:return quote.code
 			if game.state.cash<quote.cash:return "INSUFFICIENT_CASH"
@@ -127,13 +127,27 @@ static func command(game,c:Dictionary) -> String:
 			t.active=null;t.repeat=false
 		"demolish":
 			if e.is_empty():return "INVALID"
-			if e.get("starter",false) or (game.trade().active!=null and e==game.shipping_depot()):return "PROTECTED"
 			var recovery={}
+			if game.trade().active!=null and e==game.shipping_depot():
+				var shipment=game.trade().active
+				game.add(recovery,shipment.resource,shipment.reserved+shipment.loaded)
+				game.trade().active=null;game.trade().repeat=false
 			for store in [e.inputs,e.outputs,e.get("inventory",{}),e.job.reserved if e.job!=null else {},e.project.materials if e.has("project") and not e.project.complete else {}]:
 				for r in store:game.add(recovery,r,store[r])
 			for r in e.queue:game.add(recovery,r,1)
 			deposit(game,recovery,Vector2i(int(e.x),int(e.y)),e.id)
-			game.credit(floor(e.investedCash*0.5),false,false);game.state.entities.erase(e.id);game.invalidate_index()
+			game.credit(game.demolition_refund(e),false,false);game.state.entities.erase(e.id);game.invalidate_index()
+			game.state.factory.startMode="empty"
+			var pioneer=game.state.entities.get(game.state.factory.get("pioneerForestId",""),{})
+			if pioneer.get("kind","")!="forest":
+				game.state.factory.pioneerForestId=""
+				for candidate in game.state.entities.values():
+					if candidate.kind=="forest":
+						candidate.starter=true;candidate.pioneerCycles=candidate.get("pioneerCycles",0)
+						game.state.factory.pioneerForestId=candidate.id;break
+			# Recent-sale provenance must never refer to a removed entity.
+			for sale in game.state.recentSales:
+				if sale.get("entityId","")==e.id:sale.erase("entityId")
 
 		_:return "PASS"
 	game.state.world.revision+=1
