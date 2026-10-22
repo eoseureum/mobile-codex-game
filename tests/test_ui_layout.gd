@@ -60,7 +60,7 @@ func run():
 	main.show_tab("map")
 	check(main.world_tools.mode.is_empty() and main.map.preview_path.is_empty() and JSON.stringify(main.game.state)==before,"cancelling preview never spends or changes terrain")
 	main.world_tools.begin("route");main._tile(Vector2i(64,66));main._tile(Vector2i(68,66));main.world_tools.commit()
-	check(main.game.state.cash==0 and main.game.at(68,66).kind=="belt" and main.world_tools.mode.is_empty(),"confirmed route is committed and preview closes")
+	check(main.game.state.cash==500-5*main.game.data.facilities.belt.cost and main.game.at(68,66).kind=="belt" and main.world_tools.mode.is_empty(),"confirmed route is committed and preview closes")
 	Fixture.connected(main.game);main.game.invalidate_index();main._focus_city()
 	main._tile(Vector2i(59,69));main.world_tools.clear_one(Vector2i(59,69))
 	check(main.map.preview_clear==["59,69"] and main.map.preview_area.size==Vector2i.ONE,"single tree clearing highlights the affected tile")

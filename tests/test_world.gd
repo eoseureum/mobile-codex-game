@@ -82,10 +82,10 @@ func _initialize():
 		before=encoded(g);check(g.command(command)!="OK" and encoded(g)==before,"invalid/occupied/oversized work is atomic")
 	Fixture.connected(g)
 	var route=World.route_quote(g,point(64,66),point(68,66),false)
-	check(route.ok and route.cells.size()==5 and route.cash==500,"free-ground route quotes complete conveyor cost")
-	g.state.cash=499;before=encoded(g)
+	check(route.ok and route.cells.size()==5 and route.cash==5*g.data.facilities.belt.cost,"free-ground route quotes complete conveyor cost")
+	g.state.cash=route.cash-1;before=encoded(g)
 	check(g.command({"type":"buildRoute","from":point(64,66),"to":point(68,66),"clear":false})=="INSUFFICIENT_CASH" and encoded(g)==before,"unaffordable route never places partial belts")
-	g.state.cash=500
+	g.state.cash=route.cash
 	check(g.command({"type":"buildRoute","from":point(64,66),"to":point(68,66),"clear":false})=="OK" and g.state.cash==0,"route places once with exact total cost")
 	for x in range(64,69):check(g.at(x,66).kind=="belt" and int(g.at(x,66).direction)==1,"new belts point toward destination")
 	Fixture.connected(g)

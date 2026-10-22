@@ -78,7 +78,7 @@ with sync_playwright() as p:
  line=backup()['state']
  assert len(line['entities'])==3 and any(e['kind']=='sawmill' and e['x']==64 for e in line['entities'].values()),line
  assert any(e['kind']=='belt' and e['x']==63 for e in line['entities'].values())
- assert line['cash']==line['totals']['earned']-1600
+ assert line['cash']==line['totals']['earned']-catalog['facilities']['sawmill']['cost']-catalog['facilities']['belt']['cost']
  print('PASS ghost preview builds a paid sawmill and physical conveyor',flush=True)
  page.touchscreen.tap(340,792);page.wait_for_timeout(250)
  import_paid_fixture('warehouse-ready.json')
@@ -87,14 +87,17 @@ with sync_playwright() as p:
  page.touchscreen.tap(300,696);page.wait_for_timeout(650)
  shipping=backup()['state']
  assert len(shipping['entities'])==5 and any(e['kind']=='warehouse' and e['x']==66 for e in shipping['entities'].values()),shipping
- assert shipping['cash']==shipping['totals']['earned']-2150
+ assert shipping['cash']==shipping['totals']['earned']-catalog['facilities']['sawmill']['cost']-catalog['facilities']['warehouse']['cost']-2*catalog['facilities']['belt']['cost']
  print('PASS contextual shipping expansion completes the paid factory line',flush=True)
  import_paid_fixture('conveyor-flow.json')
  page.touchscreen.tap(196,397);page.wait_for_timeout(400)
  page.screenshot(path='/tmp/rust-conveyor-flow.png')
  moving=page.screenshot(clip={'x':95,'y':315,'width':220,'height':115})
- page.wait_for_timeout(450)
- assert moving!=page.screenshot(clip={'x':95,'y':315,'width':220,'height':115}), 'resource sprites must visibly move along a live merged line'
+ samples=[]
+ for _ in range(12):
+  page.wait_for_timeout(137)
+  samples.append(page.screenshot(clip={'x':95,'y':315,'width':220,'height':115}))
+ assert any(frame!=moving for frame in samples), 'resource sprites must visibly move across a full transport cadence'
  merged=backup()['state']
  destination=next(e for e in merged['entities'].values() if e['x']==68 and e['y']==66)
  assert destination['inventory'].get('log',0)>0 and destination['inventory'].get('coal',0)>0,destination
