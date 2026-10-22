@@ -77,7 +77,11 @@ with sync_playwright() as p:
     project = next(e for e in state["entities"].values() if e["kind"] == "cabin")
     assert project["project"]["materials"] == {"plank": 24}, project
     assert all(not e["inventory"] for e in state["entities"].values() if e["kind"] == "warehouse"), state
-    assert not project["project"]["complete"] and 0 < project["project"]["remainingS"] < 15, project
+    # Asset loading and import catch-up can finish the 15-second project before
+    # the first backup. Check simulated time rather than browser wall time.
+    expected_remaining = max(0, 15 - state["clock"]["elapsedS"])
+    assert project["project"]["remainingS"] == expected_remaining, project
+    assert project["project"]["complete"] == (expected_remaining == 0), project
     assert len(state["entities"]) == 3, "Construction must not require a new source or belt"
     page.touchscreen.tap(196, 397)
     page.wait_for_timeout(300)
