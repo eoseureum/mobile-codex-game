@@ -374,7 +374,7 @@ func _facility():
 		for r in definition.materials:
 			var resource=r
 			_bind_label(body,func():return "%s %d / %d"%[_resource_name(resource),e.project.materials.get(resource,0),definition.materials[resource]])
-		_bind_label(body,func():return "완공" if e.project.complete else ("운송 대기 · 공사 %d초" if game.world_mode() else "자동 조달 · 공사 %d초")%ceil(e.project.remainingS))
+		_bind_label(body,func():return "완공" if e.project.complete else ("자동 조달 · 공사 %d초")%ceil(e.project.remainingS))
 	elif e.kind=="launchpad":
 		for r in game.data.rocket:
 			var resource=r

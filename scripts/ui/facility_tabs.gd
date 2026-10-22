@@ -53,7 +53,7 @@ static func project(ui,e):
 		var r=value;var row=HBoxContainer.new();g.add_child(row);Panels.picture(ui,row,"item_"+r);ui._bind_label(row,func():return "%d / %d"%[received.get(r,0),definition[r]])
 	Panels.pager(ui,"project",definition.size(),4,"철거",func():ui._demolish(e))
 	if rocket:ui._action("로켓 발사",{"type":"launch"},bool(game.state.rocket.launched))
-	else:ui._bind_label(ui.body,func():return "완공" if e.project.complete else "공사 %d초"%ceil(e.project.remainingS))
+	else:ui._bind_label(ui.body,func():return "완공" if e.project.complete else ("창고 자동 조달 · 자재 대기" if not game.has_stock(e.project.materials,definition) else "공사 %d초"%ceil(e.project.remainingS)))
 
 static func controls(ui,e):
 	var row=ui._row();ui._spacer(row)
