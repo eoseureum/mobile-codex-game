@@ -1,8 +1,10 @@
 """Run after exporting Web. Checks the actual Godot WASM, not a JavaScript substitute."""
-import http.server,socketserver,threading,json,os,subprocess
+import http.server,socketserver,threading,json,os,subprocess,io
+from PIL import Image
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 root=Path(__file__).resolve().parents[1]
+catalog=json.loads((root/'data/catalog.json').read_text())
 subprocess.run([os.environ.get('GODOT_BIN','godot'),'--headless','--path',str(root),'--script','tools/prepare_opening_check.gd'],check=True)
 subprocess.run([os.environ.get('GODOT_BIN','godot'),'--headless','--path',str(root),'--script','tools/prepare_conveyor_check.gd'],check=True)
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -29,8 +31,8 @@ with sync_playwright() as p:
  page.touchscreen.tap(340,792);page.wait_for_timeout(300)
  page.touchscreen.tap(196,397);page.wait_for_timeout(400)
  page.touchscreen.tap(280,688);page.wait_for_timeout(400)
- page.screenshot(path='/tmp/rust-empty-confirm.png')
- page.touchscreen.tap(158,491);page.wait_for_timeout(700)
+ page.screenshot(path='/tmp/rust-first-camp.png')
+ page.wait_for_timeout(700)
  page.touchscreen.tap(340,792);page.wait_for_timeout(300)
  motion_before=page.screenshot(clip={'x':168,'y':366,'width':54,'height':62})
  page.wait_for_timeout(500)
@@ -39,7 +41,7 @@ with sync_playwright() as p:
  page.wait_for_timeout(4500)
  saved=backup()
  assert len(saved['state']['entities'])==1 and saved['state']['world']['width']==128
- assert saved['state']['cash']>=50 and saved['state']['totals']['produced'].get('log',0)>0
+ assert saved['state']['cash']>=catalog['resources']['log']['price'] and saved['state']['totals']['produced'].get('log',0)>0
  assert saved['state']['totals']['earned']==saved['state']['cash']
  assert saved['state']['entities']['e1']['investedCash']==2250
  assert any(s.get('entityId')=='e1' for s in saved['state']['recentSales'])
@@ -59,12 +61,19 @@ with sync_playwright() as p:
   page.touchscreen.tap(48,792);page.wait_for_timeout(350)
   with page.expect_file_chooser() as chooser:
    page.touchscreen.tap(195,660)
-  chooser.value.set_files(str(root/'build/fixtures'/name));page.wait_for_timeout(400)
+  chooser.value.set_files(str(root/'build/fixtures'/name))
+  # FileReader and the Godot frame can lag under CPU load. Wait for the real
+  # canvas dialog before sending its confirmation key.
+  for _ in range(120):
+   pixel=Image.open(io.BytesIO(page.screenshot(clip={'x':195,'y':330,'width':1,'height':1}))).convert('RGB').getpixel((0,0))
+   if pixel==(64,64,64):break
+   page.wait_for_timeout(100)
+  else:raise AssertionError('backup replacement dialog did not appear')
   page.keyboard.press('Enter');page.wait_for_timeout(650)
  import_paid_fixture('opening-ready.json')
  page.touchscreen.tap(196,397);page.wait_for_timeout(400)
  page.screenshot(path='/tmp/rust-opening-ready.png')
- page.touchscreen.tap(326,397);page.wait_for_timeout(300);page.keyboard.press('Enter');page.wait_for_timeout(650)
+ page.touchscreen.tap(326,397);page.wait_for_timeout(650)
  page.screenshot(path='/tmp/rust-opening-sawmill.png')
  line=backup()['state']
  assert len(line['entities'])==3 and any(e['kind']=='sawmill' and e['x']==64 for e in line['entities'].values()),line
@@ -75,7 +84,7 @@ with sync_playwright() as p:
  import_paid_fixture('warehouse-ready.json')
  page.touchscreen.tap(326,397);page.wait_for_timeout(350)
  page.screenshot(path='/tmp/rust-opening-shipping-ready.png')
- page.touchscreen.tap(300,696);page.wait_for_timeout(300);page.keyboard.press('Enter');page.wait_for_timeout(650)
+ page.touchscreen.tap(300,696);page.wait_for_timeout(650)
  shipping=backup()['state']
  assert len(shipping['entities'])==5 and any(e['kind']=='warehouse' and e['x']==66 for e in shipping['entities'].values()),shipping
  assert shipping['cash']==shipping['totals']['earned']-2150
@@ -96,6 +105,18 @@ with sync_playwright() as p:
  loaded=[e for e in jammed['entities'].values() if e['kind']=='belt' and e['y']==66]
  assert any(e['queue'] for e in loaded) and all(len(e['queue'])<=4 for e in loaded),loaded
  print('PASS mixed-resource conveyor merge, visible item motion and blocked cargo',flush=True)
+ import_paid_fixture('opening-ready.json')
+ page.touchscreen.tap(196,397);page.wait_for_timeout(400)
+ page.touchscreen.tap(271,648);page.wait_for_timeout(500)
+ rotated=backup()['state']
+ assert rotated['entities']['e1']['direction']==2,rotated['entities']['e1']
+ page.touchscreen.tap(340,792);page.wait_for_timeout(300)
+ page.touchscreen.tap(196,397);page.wait_for_timeout(350)
+ page.touchscreen.tap(333,648);page.wait_for_timeout(500)
+ removed=backup()['state']
+ assert not removed['entities'] and removed['factory']['pioneerForestId']=='',removed
+ assert removed['cash']==2250+removed['totals']['earned'],removed
+ print('PASS one-touch rotation and demolition, exact refund and valid exported save',flush=True)
  errors += [m for m in messages if 'SCRIPT ERROR' in m or m.startswith('ERROR:')]
  print('CONSOLE',messages[-30:])
  assert not errors,errors

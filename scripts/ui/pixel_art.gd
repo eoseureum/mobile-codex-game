@@ -12,6 +12,62 @@ static func texture(kind:String,frame=0) -> ImageTexture:
 	var key=kind+":"+str(clampi(frame,0,8))
 	if not cache.has(key):cache[key]=ImageTexture.create_from_image(image(kind,clampi(frame,0,8)))
 	return cache[key]
+static func conveyor_texture(mask:int,outputs:Array,frame:int=0) -> Texture2D:
+	var output_mask=0
+	for direction in outputs:output_mask|=1<<posmod(int(direction),4)
+	var key="conveyor:%d:%d:%d"%[mask&15,output_mask,clampi(frame,0,8)]
+	if not cache.has(key):cache[key]=ImageTexture.create_from_image(conveyor_image(mask,outputs,frame))
+	return cache[key]
+static func conveyor_contains(mask:int,x:int,y:int) -> bool:
+	# Pixel centres and the tile centre use half coordinates, so all four
+	# orientations are exact rotations, including the two sides of each rail.
+	var p=Vector2(x+0.5,y+0.5)
+	# Extend open ports off-tile for boundary sampling: rails must not cap them.
+	if y<0:return bool(mask&1) and x>=9 and x<=22
+	if x>31:return bool(mask&2) and y>=9 and y<=22
+	if y>31:return bool(mask&4) and x>=9 and x<=22
+	if x<0:return bool(mask&8) and y>=9 and y<=22
+	if mask in [3,6,12,9]:
+		var centre={3:Vector2(32,0),6:Vector2(32,32),12:Vector2(0,32),9:Vector2(0,0)}[mask]
+		var radius=p.distance_to(centre)
+		return radius>=9.0 and radius<=23.0
+	if x>=9 and x<=22 and y>=9 and y<=22:return true
+	return (bool(mask&1) and x>=9 and x<=22 and y<16) or (bool(mask&2) and y>=9 and y<=22 and x>=16) or (bool(mask&4) and x>=9 and x<=22 and y>=16) or (bool(mask&8) and y>=9 and y<=22 and x<16)
+static func conveyor_image(mask:int,outputs:Array,frame:int=0) -> Image:
+	mask&=15
+	var im=Image.create(32,32,false,Image.FORMAT_RGBA8)
+	im.fill(Color.TRANSPARENT)
+	var phase=maxi(0,clampi(frame,0,8)-1)
+	for y in range(32):
+		for x in range(32):
+			if not conveyor_contains(mask,x,y):continue
+			var edge=false;var rail=false
+			for d in [Vector2i.UP,Vector2i.RIGHT,Vector2i.DOWN,Vector2i.LEFT]:
+				if not conveyor_contains(mask,x+d.x,y+d.y):edge=true
+				if not conveyor_contains(mask,x+2*d.x,y+2*d.y):rail=true
+			var color="344b49" if edge else "bacbc6" if rail else "6f8d80"
+			if not edge and not rail:
+				# Rollers meet in one bed; no overlapping half-belt sprites.
+				var p=Vector2(x-15.5,y-15.5)
+				var distance=maxf(absf(p.x),absf(p.y))
+				if mask in [1,4,5]:distance=absf(p.y)
+				elif mask in [2,8,10]:distance=absf(p.x)
+				elif mask in [3,6,12,9]:
+					# Crossbars on a bend are radial spokes of the same curve.
+					var curve={3:Vector2(31.5-x,y+0.5),6:Vector2(31.5-y,31.5-x),12:Vector2(x+0.5,31.5-y),9:Vector2(y+0.5,x+0.5)}[mask]
+					distance=atan2(curve.y,curve.x)*16.0
+				if mask!=0 and posmod(int(floor(distance))-phase,7)<2:color="4e6a60"
+			im.set_pixel(x,y,Color(color))
+	# One arrow for each real output. Coordinate rotation also rotates the
+	# arrow itself, so splitters do not inherit a phantom straight-through port.
+	for direction in outputs:
+		var d=posmod(int(direction),4)
+		if not mask&(1<<d):continue
+		for at in [Vector2i(15,4),Vector2i(16,4),Vector2i(14,5),Vector2i(17,5),Vector2i(13,6),Vector2i(18,6),Vector2i(15,5),Vector2i(16,5),Vector2i(15,6),Vector2i(16,6),Vector2i(15,7),Vector2i(16,7),Vector2i(15,8),Vector2i(16,8)]:
+			var p=at
+			for turn in range(d):p=Vector2i(31-p.y,p.x)
+			if conveyor_contains(mask,p.x,p.y):im.set_pixelv(p,Color("e2eee4"))
+	return im
 static func rect(im:Image,x:int,y:int,w:int,h:int,color:String):
 	im.fill_rect(Rect2i(x,y,w,h),Color(color))
 static func panel(im:Image,x:int,y:int,w:int,h:int,color:String):

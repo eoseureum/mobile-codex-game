@@ -258,18 +258,25 @@ func _layout_title():
 		b.add_theme_stylebox_override("normal",_box(Color("e2b86b") if active else Color("fff2cf")))
 func show_tab(value):
 	world_tools.reset();build_kind="";inspect_details=false;tab=value;sheet_fraction=0 if tab=="map" else 0.48;_rebuild();_layout()
+func _demolish(e):
+	if busy:return
+	var refund=game.demolition_refund(e)
+	var result=game.command({"type":"demolish","entityId":e.id})
+	if result!="OK":message(_error(result));return
+	selected="";inspect_details=false;_save();_rebuild();_layout()
+	message("철거 +₩ "+game.money(refund))
 func _build_linked(quote):
-	confirm(game.data.facilities[quote.kind].name+" + 연결\n₩ "+Factory.money(quote.cash),func():
-		var result=game.command({"type":"buildLinked","kind":quote.kind,"sourceId":quote.sourceId,"x":quote.x,"y":quote.y})
-		if result!="OK":message(_error(result));return
-		selected=game.at(quote.x,quote.y).id;selected_tile=Vector2i(quote.x,quote.y);map.selection=selected_tile
-		inspect_details=false;tab="map";sheet_fraction=0.42;_save();_rebuild();_layout();map.focus_point(selected_tile))
+	if busy:return
+	var result=game.command({"type":"buildLinked","kind":quote.kind,"sourceId":quote.sourceId,"x":quote.x,"y":quote.y})
+	if result!="OK":message(_error(result));return
+	selected=game.at(quote.x,quote.y).id;selected_tile=Vector2i(quote.x,quote.y);map.selection=selected_tile
+	inspect_details=false;tab="map";sheet_fraction=0.42;_save();_rebuild();_layout();map.focus_point(selected_tile)
 func _build_at(kind,tile):
-	confirm(game.data.facilities[kind].name+" 건설\n"+_cost(kind),func():
-		var result=game.command({"type":"build","kind":kind,"x":tile.x,"y":tile.y})
-		if result=="OK":
-			selected=game.at(tile.x,tile.y).id;tab="map";inspect_details=false;build_kind="";sheet_fraction=0.42;_save();_rebuild();_layout()
-		else:message(_error(result)))
+	if busy:return
+	var result=game.command({"type":"build","kind":kind,"x":tile.x,"y":tile.y})
+	if result=="OK":
+		selected=game.at(tile.x,tile.y).id;tab="map";inspect_details=false;build_kind="";sheet_fraction=0.42;_save();_rebuild();_layout()
+	else:message(_error(result))
 func _tile(tile):
 	if game.world_mode() and not game.owned(tile.x,tile.y):return
 	if not game.world_mode() and (tile.x<0 or tile.y<0 or tile.x>=18 or tile.y>=12):return
@@ -383,13 +390,13 @@ func _facility():
 		if e.kind not in ["belt","splitter","launchpad"]:
 			_section("매니저" if game.recorded("first_auto_sale") else "?")
 			var level=int(e.get("managerLevel",0))
-			_action(("교육" if level>0 else "배치")+" · ₩ "+Factory.money(f.managerCosts[mini(level,2)])+" · 판자 3",{"type":"upgradeManager","entityId":e.id},level>=3 or not game.recorded("first_auto_sale"))
+			_action(("교육" if level>0 else "배치")+" · ₩ "+Factory.money(f.managerCosts[mini(level,2)])+("" if game.world_mode() else " · 판자 3"),{"type":"upgradeManager","entityId":e.id},level>=3 or not game.recorded("first_auto_sale"))
 		_section("생산 개선 · Lv.%d"%e.level)
 		if f.cycle>0:_label(body,"%.2f초 → %.2f초"%[f.cycle/game.speed(e),f.cycle/(game.speed(e)+0.12)])
 		_action("생산 개선 · ₩ "+Factory.money(f.upgradeCosts[int(e.level)-1]),{"type":"upgrade","entityId":e.id},e.level>=f.maxLevel)
 	var row=_row();_spacer(row)
-	var demolish=_button(row,"철거",func():confirm("시설을 철거하고 내부 재고와 투자금의 50%를 돌려받아요.",func():_command({"type":"demolish","entityId":e.id})))
-	demolish.disabled=(e.get("starter",false) or (game.trade().active!=null and e==game.shipping_depot())) if game.world_mode() else e.id in ["e1","e2","e3"]
+	var demolish=_button(row,"철거",func():_demolish(e))
+	demolish.disabled=not game.world_mode() and e.id in ["e1","e2","e3"]
 func _stock_text(values) -> String:
 	var names=[]
 	for r in values:names.append(_resource_name(r)+" %d"%values[r])

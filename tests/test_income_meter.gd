@@ -9,13 +9,17 @@ func _initialize():
 	var meter=load("res://scripts/ui/income_meter.gd").new();var g=Factory.new();g.fresh(0,true,42)
 	check(meter.rate(g)<0,"fresh city shows gathering data instead of a false extrapolated rate")
 	g.command({"type":"build","kind":"forest","x":62,"y":64});g.advance(20)
-	check(meter.rate(g)==750,"twenty seconds of real logging income reports 750 per minute")
+	var first_rate=meter.rate(g)
+	check(first_rate==floor(20/g.data.facilities.forest.cycle)*g.price("log")*3,"income reflects actual completed production")
 	var stable=true
-	for i in range(79):g.advance(0.25);stable=stable and meter.rate(g)==750
+	for i in range(79):g.advance(0.25);stable=stable and meter.rate(g)==first_rate
 	check(stable,"rate stays fixed between completed reporting windows despite individual sales")
-	g.advance(0.25);check(meter.rate(g)==750,"next completed window preserves steady production income")
+	g.advance(0.25);var expected=0
+	for sale in g.state.recentSales:
+		if sale.atS<40:expected+=sale.cash
+	check(meter.rate(g)==expected*60.0/40,"next completed window measures real cash")
 	g.command({"type":"pause","entityId":"e1"});g.advance(20)
-	check(meter.rate(g)==500,"recent average reflects a genuine production stoppage")
+	check(meter.rate(g)==expected,"recent average reflects a genuine production stoppage")
 	g.advance(40);check(meter.rate(g)==0,"stopped production eventually reports zero")
 	g.fresh(0,true,42);check(meter.rate(g)<0,"new city does not inherit the old city's income estimate")
 	print("INCOME: %d checks, %d failures"%[checks,failures]);quit(1 if failures else 0)

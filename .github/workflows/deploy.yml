@@ -52,6 +52,14 @@ jobs:
           godot --headless --path . --script tests/test_compact_cards.gd
       - name: Check pinch zoom and touch safety
         run: godot --headless --path . --script tests/test_pinch.gd
+      - name: Check facility management, conveyor topology and Korean glyphs
+        run: |
+          godot --headless --path . --script tests/test_factory_polish.gd
+          godot --headless --path . --script tests/test_polish_ui.gd
+          godot --headless --path . --script tests/test_conveyor_shapes.gd
+          godot --headless --path . --script tests/test_font_glyphs.gd
+      - name: Replay paid empty-city campaign to first rocket
+        run: godot --headless --path . --script tools/campaign_balance.gd -- --replay=res://docs/balance/2026-10-22-campaign-zero-latency.json
       - name: Export single-threaded web game
         run: |
           mkdir -p build/web

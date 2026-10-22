@@ -21,10 +21,11 @@ func run():
 	check(suggestion.get("ok",false) and suggestion.kind=="sawmill" and suggestion.cash==1600,"first expansion quotes a real sawmill and its connecting belt")
 	check(JSON.stringify(g.state)==before,"preview never changes resources, buildings, IDs or money")
 	check(g.command({"type":"buildLinked","sourceId":camp.id,"kind":"sawmill","x":64,"y":64})=="INSUFFICIENT_CASH" and JSON.stringify(g.state)==before,"unaffordable linked expansion changes nothing")
-	g.advance(128)
-	check(g.state.cash==1600,"existing gradual log economy funds the first expansion")
+	while g.state.cash<1600:g.advance(0.25)
+	var paid_cash=g.state.cash
+	check(paid_cash<1600+g.price("log"),"gradual log economy funds expansion without injected cash")
 	check(g.command({"type":"buildLinked","sourceId":camp.id,"kind":"sawmill","x":64,"y":64})=="OK","one paid action builds a sawmill and physical connecting conveyor")
-	check(g.at(64,64).kind=="sawmill" and g.at(63,64).kind=="belt" and g.state.cash==0,"linked build charges exact total without free materials or belts")
+	check(g.at(64,64).kind=="sawmill" and g.at(63,64).kind=="belt" and g.state.cash==paid_cash-1600,"linked build charges exact total without free materials or belts")
 	var mill=g.at(64,64)
 	check(UX.suggestion(g,mill).cash==550,"next visible expansion is a connected shipping warehouse")
 	while g.state.cash<550:g.advance(0.25)
@@ -37,7 +38,7 @@ func run():
 		var previous_cash=g.state.cash
 		g.advance(0.25)
 		last_delta=g.state.cash-previous_cash
-	check(g.recorded("first_auto_sale") and UX.feature(g,"industry"),"actual plank sales and industrial expansion follow the built line")
+	check(g.recorded("first_auto_sale"),"actual plank sales follow the built line")
 	var attributed=false
 	for s in g.sales:
 		if s.get("entityId")==depot.id:attributed=true
@@ -45,6 +46,10 @@ func run():
 	var shown_income=0
 	for s in g.sales:shown_income+=s.cash
 	check(shown_income==last_delta,"visual sale feedback equals actual credited money and never creates extra income")
+	for i in range(600):
+		if g.stage_index()>=1:break
+		g.advance(0.25)
+	check(UX.feature(g,"industry"),"industry opens as the automated line reaches mining scale")
 	check(Store.new().validate(Store.new().snapshot(g)).is_empty(),"connected expansion and attributed sales roundtrip through existing saves")
 	for command in [
 		{"type":"buildLinked","sourceId":"missing","kind":"sawmill","x":68,"y":64},

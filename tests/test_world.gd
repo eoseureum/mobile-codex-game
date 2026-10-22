@@ -55,8 +55,8 @@ func _initialize():
 	var mined=g.at(75,66)
 	check(g.command({"type":"setMineResource","entityId":mined.id,"resource":"coal"})=="LOCKED","vein mineral cannot be switched")
 	check(g.command({"type":"buildRoute","from":point(75,66),"to":point(66,64),"clear":false})=="OK","paid mine route reaches the starter shipping depot")
-	var mine_cash=g.state.cash;g.advance(180)
-	check(g.state.totals.sold.get("copper",0)>0 and g.state.cash-mine_cash>180*75,"mining creates delivered sales and visible midgame momentum")
+	var mine_cash=g.state.cash;var mining_seconds=g.data.facilities.mine.cycle*35;g.advance(mining_seconds)
+	check(g.state.totals.sold.get("copper",0)>0 and g.state.cash-mine_cash>mining_seconds/g.data.facilities.forest.cycle*g.price("log")*3,"mining creates delivered sales and visible midgame momentum")
 	Fixture.connected(g)
 	g.state.entities.e3.incomeLevel=10
 	var improved_quote=World.clear_quote(g,point(59,69),point(59,69))
@@ -68,7 +68,7 @@ func _initialize():
 	check(encoded(g)==before,"unaffordable clearing changes nothing")
 	g.state.cash=500
 	var quote=World.clear_quote(g,point(59,69),point(59,69))
-	check(quote.ok and quote.cash>100 and quote.reward.get("log")==2,"tree clearing quotes modest recovery with nonprofitable fee")
+	check(quote.ok and quote.cash>2*g.price("log") and quote.reward.get("log")==2,"tree clearing quotes modest recovery with nonprofitable fee")
 	check(g.command({"type":"clearArea","from":point(59,69),"to":point(59,69)})=="OK","single tile can be cleared")
 	check(World.resource_at(g.state.world,59,69)=="" and g.stock("log")==2 and g.produced("log")==0,"clearing leaves ground and is not ongoing production")
 	before=encoded(g)

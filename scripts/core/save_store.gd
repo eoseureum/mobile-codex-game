@@ -97,7 +97,8 @@ func validate(snapshot) -> String:
 		if not is_world or s.factory.startMode!="empty" or not s.factory.get("pioneerForestId") is String:return "시작 시설 정보가 올바르지 않아요."
 		var pioneer=s.entities.get(s.factory.pioneerForestId,{})
 		if s.factory.pioneerForestId.is_empty():
-			if not s.entities.is_empty() or s.nextId!=1 or not s.records.is_empty() or not s.totals.produced.is_empty():return "시작 시설 정보가 올바르지 않아요."
+			for entity in s.entities.values():
+				if entity.kind=="forest":return "시작 시설 정보가 올바르지 않아요."
 		elif pioneer.get("kind","")!="forest" or pioneer.get("starter")!=true or not whole(pioneer.get("pioneerCycles")):return "시작 시설 정보가 올바르지 않아요."
 	else:
 		for id in ["e1","e2","e3"]:
@@ -122,8 +123,10 @@ func validate(snapshot) -> String:
 			var a=t.active
 			if not a is Dictionary or not game.data.resources.has(a.get("resource","")) or a.get("bonus",0) not in [1.0,1.1]: return "출하 주문이 올바르지 않아요."
 			var quote={}
-			for q in game.quotes(a.resource,a.bonus):
-				if q.id==a.get("id"): quote=q
+			var candidates=game.quotes(a.resource,a.bonus)
+			if is_world:candidates.append_array(game.quotes(a.resource,a.bonus,true))
+			for q in candidates:
+				if q.id==a.get("id") and q.reward==a.get("reward"):quote=q;break
 			if quote.is_empty() or quote.reward!=a.get("reward") or quote.quantity!=a.get("quantity") or a.id!=t.get("lastOfferId"): return "출하 금액이 올바르지 않아요."
 			if not whole(a.get("loaded"),0,a.quantity) or not whole(a.get("reserved"),0,a.quantity) or a.loaded+a.reserved>a.quantity: return "출하 수량이 올바르지 않아요."
 			if not (a.get("departureS") is int or a.get("departureS") is float) or not (a.get("loadingCredit") is int or a.get("loadingCredit") is float) or a.departureS<=0 or a.departureS>5 or a.loadingCredit<0 or a.loadingCredit>1.8: return "상차 정보가 올바르지 않아요."

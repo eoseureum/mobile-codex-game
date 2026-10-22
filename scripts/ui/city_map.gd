@@ -129,7 +129,7 @@ func _gui_input(e):
 		last_at=e.position
 		accept_event()
 func record_transfers():
-	if not is_same(sale_state,game.state):sale_state=game.state;last_sale_time=game.state.clock.elapsedS-game.DT-0.000001;sale_bubbles=[]
+	if not is_same(sale_state,game.state):sale_state=game.state;last_sale_time=game.state.clock.elapsedS-game.DT-0.000001;sale_bubbles=[];particles=[]
 	for sale in game.sales:
 		if sale.atS<=last_sale_time or not game.state.entities.has(sale.get("entityId","")):continue
 		var e=game.state.entities[sale.entityId]
@@ -138,7 +138,7 @@ func record_transfers():
 	for t in game.transfers:
 		if particles.size()>=50:break
 		if not game.state.entities.has(t.sourceId) or not game.state.entities.has(t.targetId):continue
-		particles.append({"a":Vector2(game.state.entities[t.sourceId].x+0.5,game.state.entities[t.sourceId].y+0.5),"b":Vector2(game.state.entities[t.targetId].x+0.5,game.state.entities[t.targetId].y+0.5),"r":t.resource,"duration":Conveyor.duration(game,game.state.entities[t.sourceId]),"age":0.0})
+		particles.append({"sourceId":t.sourceId,"targetId":t.targetId,"a":Vector2(game.state.entities[t.sourceId].x+0.5,game.state.entities[t.sourceId].y+0.5),"b":Vector2(game.state.entities[t.targetId].x+0.5,game.state.entities[t.targetId].y+0.5),"r":t.resource,"duration":Conveyor.duration(game,game.state.entities[t.sourceId]),"age":0.0})
 func _process(delta):
 	for p in particles:p.age+=delta
 	particles=particles.filter(func(p):return p.age<p.duration)
@@ -193,16 +193,17 @@ func _draw():
 		if not r.intersects(Rect2(Vector2.ZERO,size)):continue
 		var anim=Motion.frame(Motion.phase(game,e))
 		if game.transport(e):
-			for port in Conveyor.inputs(game,e):
-				if port==(int(e.direction)+2)%4:continue
-				draw_set_transform(r.get_center(),(port-1)*PI/2,Vector2.ONE*r.size.x/32)
-				# A half-belt joins at the hub; its far side ends at this tile edge.
-				draw_texture_rect_region(Art.texture("belt",anim),Rect2(0,-16,16,32),Rect2(16,0,16,32))
-			draw_set_transform(r.get_center(),(int(e.direction)-1)*PI/2,Vector2.ONE*r.size.x/32)
-			_sprite(e.kind,Rect2(-Vector2.ONE*16,Vector2.ONE*32),anim)
-			draw_set_transform(Vector2.ZERO,0,Vector2.ONE)
-			for cargo in Conveyor.cargo(e):
-				_item(cargo.resource,r.get_center()+cargo.offset*unit,unit*cargo.size)
+			var outputs=e.splitDirections if e.kind=="splitter" else [int(e.direction)]
+			draw_texture_rect(Art.conveyor_texture(Conveyor.ports_mask(game,e),outputs,anim),r,false)
+			var incoming={}
+			for flight in particles:
+				if flight.targetId==e.id and flight.age<flight.duration:incoming[flight.r]=incoming.get(flight.r,0)+1
+			for cargo in Conveyor.cargo(e,incoming):
+				var at=r.get_center()+cargo.offset*unit
+				_item(cargo.resource,at,unit*cargo.size)
+				if cargo.count>1:
+					draw_string_outline(font,at+Vector2(unit*0.08,unit*0.18),str(cargo.count),HORIZONTAL_ALIGNMENT_LEFT,-1,maxi(10,int(unit*.19)),3,INK)
+					draw_string(font,at+Vector2(unit*0.08,unit*0.18),str(cargo.count),HORIZONTAL_ALIGNMENT_LEFT,-1,maxi(10,int(unit*.19)),Color("fff0ae"))
 		else:_sprite(e.kind,r,anim)
 		if e.job!=null:
 			var percent=clampf(1-e.job.remaining/game.recipe(e).cycle,0,1)
@@ -238,6 +239,7 @@ func _draw():
 			for n in range(1,4):draw_circle(start.lerp(finish,n/4.0),maxf(1,unit/48),Color("f4d487"))
 	if selected_id.is_empty():_corners(tile_rect(selection.x,selection.y).grow(-unit*0.03),Color("f4d487"))
 	for p in particles:
+		if not game.state.entities.has(p.sourceId) or not game.state.entities.has(p.targetId):continue
 		var t=clampf(p.age/p.duration,0,1)
 		var at=(camera+p.a.lerp(p.b,t)*unit).round()
 		_item(p.r,at,unit*0.46)
