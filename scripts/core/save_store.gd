@@ -4,6 +4,10 @@ const Factory=preload("res://scripts/core/factory.gd")
 const World=preload("res://scripts/core/world_map.gd")
 const PATH="user://rust-city-godot-v1.json"
 var last_error=""
+var save_path:String
+
+func _init(path:String=PATH):
+	save_path=path
 
 func whole(n,lo=0,hi=RustFactory.MAX_MONEY) -> bool:
 	return (n is int or n is float) and is_finite(float(n)) and n>=lo and n<=hi and floor(n)==n
@@ -160,27 +164,31 @@ func snapshot(game) -> Dictionary:
 func export_text(game) -> String: return JSON.stringify(snapshot(game),"",false,true)
 
 func save(game) -> bool:
-	var value=snapshot(game)
+	return write_snapshot(snapshot(game))
+
+func write_snapshot(value:Dictionary) -> bool:
 	last_error=validate(value)
 	if not last_error.is_empty(): return false
-	var file=FileAccess.open(PATH+".tmp",FileAccess.WRITE)
+	var file=FileAccess.open(save_path+".tmp",FileAccess.WRITE)
 	if file==null: last_error="저장할 수 없어요. 백업을 내보내 주세요."; return false
 	file.store_string(JSON.stringify(value,"",false,true))
 	file.flush()
 	file.close()
-	var absolute=ProjectSettings.globalize_path(PATH)
-	if FileAccess.file_exists(PATH):
-		var prior=FileAccess.get_file_as_string(PATH)
+	var absolute=ProjectSettings.globalize_path(save_path)
+	if FileAccess.file_exists(save_path):
+		var prior=FileAccess.get_file_as_string(save_path)
 		if not parse(prior).is_empty():
 			if DirAccess.copy_absolute(absolute,absolute+".bak")!=OK: last_error="이전 백업을 보관하지 못했어요."; return false
 	if DirAccess.rename_absolute(absolute+".tmp",absolute)!=OK: last_error="저장 파일을 교체하지 못했어요."; return false
+	if OS.has_feature("web"):JavaScriptBridge.force_fs_sync()
 	last_error=""
 	return true
 
 func load_city() -> Dictionary:
-	if not FileAccess.file_exists(PATH): return {}
-	var value=parse(FileAccess.get_file_as_string(PATH))
-	if value.is_empty() and FileAccess.file_exists(PATH+".bak"):
-		value=parse(FileAccess.get_file_as_string(PATH+".bak"))
+	last_error=""
+	var value={}
+	if FileAccess.file_exists(save_path):value=parse(FileAccess.get_file_as_string(save_path))
+	if value.is_empty() and FileAccess.file_exists(save_path+".bak"):
+		value=parse(FileAccess.get_file_as_string(save_path+".bak"))
 		if not value.is_empty(): last_error="이전 자동 백업에서 도시를 복원했어요."
 	return value

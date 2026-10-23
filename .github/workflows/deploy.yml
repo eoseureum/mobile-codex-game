@@ -44,6 +44,11 @@ jobs:
         run: |
           godot --headless --path . --script tests/test_sales_hub.gd
           godot --headless --path . --script tests/test_sales_hub_ui.gd
+      - name: Check start menu, independent worlds and legacy migration
+        run: |
+          godot --headless --path . --script tests/test_world_library.gd
+          godot --headless --path . --script tests/test_start_screen.gd
+          godot --headless --path . --script tests/test_start_flow.gd
       - name: Check open world, routes, local inventory and clearing
         run: godot --headless --path . --script tests/test_world.gd
       - name: Check empty city opening and paid first factory line

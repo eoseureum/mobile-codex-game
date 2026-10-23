@@ -12,8 +12,15 @@ const Panels=preload("res://scripts/ui/paged_panels.gd")
 const FacilityTabs=preload("res://scripts/ui/facility_tabs.gd")
 const IncomeMeter=preload("res://scripts/ui/income_meter.gd")
 const RecipePreview=preload("res://scripts/ui/recipe_preview.gd")
+const WorldLibrary=preload("res://scripts/core/world_library.gd")
+const StartScreen=preload("res://scripts/ui/start_screen.gd")
 var game=Factory.new()
 var store=SaveStore.new()
+var library=WorldLibrary.new()
+var start_screen
+var active_world_id=""
+var game_started=false
+var menu_loading=false
 var map
 var world_tools
 var overview
@@ -38,6 +45,7 @@ var build_kind=""
 var bindings=[]
 var layout_signature=""
 var busy=false
+var catch_up_pending=0.0
 var visible_game=true
 var allow_save=true
 var last_save=0
@@ -66,6 +74,7 @@ var recipe_button: Button
 
 func _ready():
 	auto_checks="--ui-check" in OS.get_cmdline_user_args()
+	game_started=auto_checks or not allow_save
 	var skin=Theme.new()
 	skin.default_font=load("res://assets/fonts/RustCity.otf")
 	theme=skin
@@ -101,17 +110,60 @@ func _ready():
 	dialog.canceled.connect(func():pending_action=Callable())
 	resized.connect(_resize_layout)
 	_layout();_focus_city();_rebuild()
-	if not auto_checks:
-		var saved=store.load_city()
-		if not saved.is_empty():
-			game.state=saved.state
-			game.upgrade_world()
-			await _catch_up(maxf(0,Time.get_unix_time_from_system()-saved.savedAtMs/1000.0))
-		elif not store.last_error.is_empty():allow_save=false;message(store.last_error)
-		_focus_city();_rebuild();_layout();_save()
-	else:
+	if auto_checks:
 		await get_tree().process_frame
 		await _ui_test()
+	elif allow_save:
+		start_screen=StartScreen.new();start_screen.setup(self);add_child(start_screen)
+		start_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		start_screen.new_world_requested.connect(_new_world)
+		start_screen.resume_world_requested.connect(_resume_world)
+		start_screen.import_requested.connect(_import_backup)
+		library.migrate_existing()
+		_show_start(library.last_error)
+
+func _play_visibility(value):
+	for control in [map,header,sheet,nav,map_buttons,overview,toast_label]:control.visible=value
+	map.set_process_input(value)
+	map.active_fingers.clear();map.touch_points.clear();map.dragging=false;map.pressed=false
+	if not value:world_tools.reset()
+
+func _show_start(note=""):
+	if menu_loading or start_screen==null:return
+	if busy:message("도시를 준비하고 있어요.");return
+	if game_started and not _save():return
+	game_started=false;visible_game=false;paused_at=0.0
+	_play_visibility(false);dialog.hide();RecipePreview.clear(self);pending_action=Callable()
+	start_screen.visible=true;start_screen.refresh(library.worlds(),note);start_screen.show_home()
+	start_screen.layout_screen()
+
+func _enter_game():
+	selected="e1";selected_tile=Vector2i.ZERO;tab="map";inspect_details=false;sheet_fraction=0.42
+	build_kind="";pages.clear();catalog_all=false;inventory_details=false;income_meter=IncomeMeter.new()
+	menu_loading=false;busy=false;visible_game=true;paused_at=0.0;game_started=true
+	if start_screen!=null:start_screen.set_loading(false);start_screen.hide()
+	_play_visibility(true);_focus_city();_rebuild();_layout();map.focus_district()
+
+func _new_world():
+	if menu_loading or busy or game_started:return
+	menu_loading=true;start_screen.set_loading(true)
+	game.fresh(-1,true,randi_range(0,2147483647))
+	var id=library.create(game)
+	if id.is_empty():
+		var error=library.last_error
+		menu_loading=false;start_screen.set_loading(false);start_screen.refresh(library.worlds(),error);return
+	active_world_id=id;_enter_game()
+
+func _resume_world(id):
+	if menu_loading or busy or game_started:return
+	menu_loading=true;start_screen.set_loading(true)
+	var saved=library.load_world(id)
+	if saved.is_empty():
+		var error=library.last_error
+		menu_loading=false;start_screen.set_loading(false);start_screen.refresh(library.worlds(),error);return
+	active_world_id=id;game.state=saved.state;game.invalidate_index();game.clear_effects();game.upgrade_world()
+	await _catch_up(maxf(0,Time.get_unix_time_from_system()-saved.savedAtMs/1000.0))
+	_enter_game();_save()
 
 func _focus_city():
 	if game.central_sales() and not game.recorded("first_collection") and not game.recorded("first_sale"):
@@ -216,7 +268,7 @@ func _layout():
 		var focus=_box(Color.TRANSPARENT);focus.border_color=Color("b58d4f");focus.shadow_size=0;theme.set_stylebox("focus",type,focus)
 	theme.set_color("font_color","Label",Color("414b38"))
 	map.position=Vector2.ZERO;map.size=size;map.tile_size=96*u
-	overview.visible=game.world_mode() and Opening.feature(game,"overview");overview.position=Vector2(16,114)*u;overview.size=Vector2(94,94)*u
+	overview.visible=game_started and game.world_mode() and Opening.feature(game,"overview");overview.position=Vector2(16,114)*u;overview.size=Vector2(94,94)*u
 	header.position=Vector2.ZERO;header.size=size
 	wallet.position=Vector2(16,16)*u;wallet.size=Vector2(214,86)*u;wallet.add_theme_stylebox_override("panel",_box(Color("fff2cf"),12))
 	cash_label.position=Vector2(14,24)*u;cash_label.add_theme_font_size_override("font_size",int(28*u))
@@ -247,10 +299,11 @@ func _layout():
 	body.add_theme_constant_override("separation",int(6*u))
 	map_buttons.add_theme_constant_override("separation",int(8*u))
 	for b in map_buttons.get_children():b.custom_minimum_size=Vector2(48,48)*u
-	map_buttons.position=Vector2(size.x-64*u,sheet.position.y-176*u);map_buttons.size=Vector2(48,160)*u;map_buttons.visible=sheet_fraction==0
+	map_buttons.position=Vector2(size.x-64*u,sheet.position.y-176*u);map_buttons.size=Vector2(48,160)*u;map_buttons.visible=game_started and sheet_fraction==0
 	for b in map_buttons.get_children():_size_floating_button(b,u,false)
 	toast_label.position=Vector2(16,116)*u;toast_label.size=Vector2(size.x-32*u,44*u);toast_label.add_theme_font_size_override("font_size",int(13*u))
 	_layout_title()
+	if start_screen!=null:start_screen.layout_screen()
 func _sheet_input(e):
 	if e is InputEventMouseButton and e.button_index==MOUSE_BUTTON_LEFT:
 		if e.pressed:drag_sheet=true;drag_moved=false;drag_start=get_global_mouse_position().y;drag_initial=sheet.size.y
@@ -491,7 +544,7 @@ func _settings():
 	_label(body,"이 브라우저 / 기기에 자동 저장")
 	_button(body,"백업 내보내기",_export_backup)
 	_button(body,"웹 도시 / Godot 백업 불러오기",_import_backup)
-	_button(body,"새 도시 시작",func():confirm("현재 Godot 도시를 새로 시작해요. 백업을 먼저 보관해 주세요.",func():game.fresh();selected="e1";allow_save=true;_save();show_tab("map");_focus_city()))
+	_button(body,"시작 화면",_show_start)
 func _refresh():
 	cash_label.text="₩ "+Factory.money(game.state.cash)
 	stage_label.text="RUST CITY · "+game.data.stageNames[game.stage_index()]
@@ -502,7 +555,7 @@ func _refresh():
 	var warehouse=header.get_node("WarehouseButton");warehouse.visible=Opening.feature(game,"inventory")
 	warehouse.get_node("Caption").text="가방" if game.central_sales() else "창고"
 	warehouse.tooltip_text="가방" if game.central_sales() else "창고"
-	overview.visible=game.world_mode() and Opening.feature(game,"overview")
+	overview.visible=game_started and game.world_mode() and Opening.feature(game,"overview")
 	for button in nav.get_children():
 		var available=Opening.feature(game,button.get_meta("tab"));button.disabled=not available
 		button.modulate.a=1.0 if available else 0.0
@@ -510,7 +563,7 @@ func _refresh():
 		button.focus_mode=Control.FOCUS_ALL if available else Control.FOCUS_NONE
 	_layout_title()
 func _process(delta):
-	if game==null or header==null:return
+	if game==null or header==null or not game_started:return
 	if not busy and visible_game and not auto_checks:
 		var previous=game.state.clock.tickIndex
 		game.advance(minf(1,delta))
@@ -520,23 +573,31 @@ func _process(delta):
 			if signature!=layout_signature:_rebuild()
 		if Time.get_ticks_msec()-last_save>10000:_save()
 	toast_label.visible=Time.get_ticks_msec()<toast_until
-func _save():
+func _save() -> bool:
 	last_save=Time.get_ticks_msec()
-	if allow_save and not auto_checks and not store.save(game):message(store.last_error)
+	if not allow_save or auto_checks:return true
+	if not game_started or active_world_id.is_empty():return true
+	if not library.save_world(active_world_id,game):message(library.last_error);return false
+	return true
 func _catch_up(seconds):
 	if not game.state.unlocks.offline:return
+	catch_up_pending+=minf(maxf(0,seconds),7200)
+	# Repeated focus events enqueue elapsed time; only this coroutine owns busy.
+	if busy:return
 	busy=true
-	var duration=minf(seconds,7200)
-	var total=duration+game.state.clock.carryS
-	var ticks=int(floor(total/0.25+0.000000001))
-	game.state.clock.carryS=maxf(0,total-ticks*0.25)
-	for i in range(ticks):
-		game.tick()
-		if i%400==399:await get_tree().process_frame
+	var duration=0.0
+	while catch_up_pending>0:
+		var pending=catch_up_pending;catch_up_pending=0.0;duration+=pending
+		var total=pending+game.state.clock.carryS
+		var ticks=int(floor(total/0.25+0.000000001))
+		game.state.clock.carryS=maxf(0,total-ticks*0.25)
+		for i in range(ticks):
+			game.tick()
+			if i%400==399:await get_tree().process_frame
 	busy=false
 	if duration>=60:message("도시가 %d분 동안 가동됐어요."%floor(duration/60))
 func _notification(what):
-	if not is_node_ready() or auto_checks:return
+	if not is_node_ready() or auto_checks or not game_started:return
 	if what==NOTIFICATION_APPLICATION_FOCUS_OUT:
 		visible_game=false;paused_at=Time.get_unix_time_from_system();_save()
 	if what==NOTIFICATION_APPLICATION_FOCUS_IN and not visible_game:
@@ -558,9 +619,26 @@ func _import_backup():
 	else:
 		var chooser=FileDialog.new();chooser.file_mode=FileDialog.FILE_MODE_OPEN_FILE;chooser.access=FileDialog.ACCESS_FILESYSTEM;chooser.filters=PackedStringArray(["*.json ; Rust City backup"]);add_child(chooser);chooser.file_selected.connect(func(path):_prepare_import(FileAccess.get_file_as_string(path));chooser.queue_free());chooser.popup_centered_ratio(0.7)
 func _prepare_import(text):
+	if menu_loading:return
 	var snapshot=store.parse(text)
-	if snapshot.is_empty():message(store.last_error);return
-	confirm("백업 도시로 교체할까요? 현재 Godot 도시를 먼저 내보내 보관할 수 있어요.",func():game.state=snapshot.state;game.upgrade_world();selected="e1";allow_save=true;await _catch_up(maxf(0,Time.get_unix_time_from_system()-snapshot.savedAtMs/1000.0));_save();show_tab("map");_focus_city())
+	if snapshot.is_empty():
+		if game_started:message(store.last_error)
+		elif start_screen!=null:start_screen.refresh(library.worlds(),store.last_error)
+		return
+	menu_loading=true
+	while busy:await get_tree().process_frame
+	menu_loading=false
+	if game_started and not _save():return
+	var id=library.import_snapshot(snapshot)
+	if id.is_empty():
+		if game_started:message(library.last_error)
+		elif start_screen!=null:
+			var error=library.last_error
+			start_screen.refresh(library.worlds(),error)
+		return
+	game_started=false;visible_game=false
+	if start_screen!=null:start_screen.show()
+	_play_visibility(false);await _resume_world(id)
 func _ui_test():
 	var before={}
 	for child in body.get_children():
