@@ -3,6 +3,7 @@ extends RefCounted
 
 const World=preload("res://scripts/core/world_map.gd")
 const WorldRules=preload("res://scripts/core/world_rules.gd")
+const SalesHub=preload("res://scripts/core/sales_hub.gd")
 const DT = 0.25
 const MAX_MONEY = 9007199254740991
 const DIRS = [Vector2i(0,-1), Vector2i(1,0), Vector2i(0,1), Vector2i(-1,0)]
@@ -31,11 +32,20 @@ func fresh(now_ms = -1,open_world=true,seed_value=-1):
 	if open_world:WorldRules.setup(self,int(seed_value) if seed_value>=0 else int(Time.get_unix_time_from_system()*1000)%2147483647)
 
 func world_mode() -> bool:return state.has("world")
+func central_sales() -> bool:return SalesHub.active(self)
+func entity_limit() -> int:return World.MAX_ENTITIES+1 if central_sales() else World.MAX_ENTITIES
+func sales_hub() -> Dictionary:return SalesHub.hub(self)
+func entity_rect(e) -> Rect2i:return SalesHub.rect(e)
+func upgrade_world() -> bool:
+	if not world_mode():
+		if WorldRules.migrate(self,int(state.createdAtMs)%2147483647)!="OK":return false
+	return SalesHub.install(self)
 func invalidate_index():_indexed_size=-1
 func clear_effects():_effects_cache={}
 func stock(r) -> int:return WorldRules.stock(self,r) if world_mode() else int(state.bag.get(r,0))
 func storage_capacity(e) -> int:return 200*int(e.level)
 func construction_materials(kind) -> Dictionary:
+	if central_sales():return {}
 	if world_mode() and state.factory.get("startMode","")=="empty":
 		if kind=="forest" and state.factory.pioneerForestId.is_empty():return {}
 		if kind=="sawmill" and not has_facility("sawmill"):return {}
@@ -104,7 +114,10 @@ func at(x,y) -> Dictionary:
 	if world_mode():
 		if _indexed_size!=state.entities.size() or not is_same(_indexed_source,state.entities):
 			_positions={};_indexed_source=state.entities;_indexed_size=state.entities.size()
-			for entity in state.entities.values():_positions[key(entity.x,entity.y)]=entity
+			for entity in state.entities.values():
+				var area=entity_rect(entity)
+				for yy in range(area.position.y,area.end.y):
+					for xx in range(area.position.x,area.end.x):_positions[key(xx,yy)]=entity
 		return _positions.get(key(x,y),{})
 	for e in state.entities.values():
 		if e.x==x and e.y==y: return e
@@ -122,6 +135,9 @@ func create_entity(kind,x,y,extra = {}) -> Dictionary:
 
 func unlocked(kind) -> bool:
 	if not data.facilities.has(kind) or stage_index()<data.facilities[kind].tier: return false
+	if central_sales():
+		if kind in ["warehouse","market"]:return false
+		if not SalesHub.started(self):return kind=="forest"
 	if world_mode() and state.factory.get("startMode","")=="empty" and state.factory.pioneerForestId.is_empty() and state.entities.is_empty():return kind=="forest"
 	if kind=="sawmill": return world_mode() or state.districts.forest.size>=2
 	if kind=="generator": return produced("wire")>=10
@@ -340,10 +356,13 @@ func effects() -> Dictionary:
 			if e.kind=="cabin": result.operating=1.25
 			if e.kind=="cityWorkshop": result.shipment=1.1
 			if e.kind=="dispatchOffice": result.loading=1.8; result.cooldown=16.0
+	if central_sales():result.operating*=result.shipment
 	if world_mode():_effects_cache=result
 	return result
 
-func income_facility(e) -> bool: return (e.kind=="market" or (e.kind=="warehouse" and e.autoSell) or (e.kind=="forest" and e.id==state.factory.get("pioneerForestId",""))) if world_mode() else data.facilities[e.kind].cycle>0 and not data.facilities[e.kind].output.is_empty()
+func income_facility(e) -> bool:
+	if central_sales():return e.get("salesHub",false)
+	return (e.kind=="market" or (e.kind=="warehouse" and e.autoSell) or (e.kind=="forest" and e.id==state.factory.get("pioneerForestId",""))) if world_mode() else data.facilities[e.kind].cycle>0 and not data.facilities[e.kind].output.is_empty()
 func income_per_batch(e) -> float:
 	var total=0.0
 	var output=recipe(e).output
@@ -419,6 +438,7 @@ func quotes(r,bonus = -1.0,historical=false) -> Array:
 	return result
 
 func offers() -> Array:
+	if central_sales():return []
 	var result=[]
 	var depot=shipping_depot()
 	if depot.is_empty(): return result
@@ -571,10 +591,13 @@ func logistics():
 	var ids=data.resources.keys()
 	var income=0
 	for e in all:
-		index[key(e.x,e.y)]=e
+		var area=entity_rect(e)
+		for y in range(area.position.y,area.end.y):
+			for x in range(area.position.x,area.end.x):index[key(x,y)]=e
 		if e.kind=="market" and not e.paused:
 			var sold_here=0
-			e.flowCredit=minf(2*speed(e),e.flowCredit+DT*2*speed(e))
+			var rate=8*speed(e)*effects().loading/1.5 if central_sales() else 2*speed(e)
+			e.flowCredit=minf(rate,e.flowCredit+DT*rate)
 			var budget=int(floor(e.flowCredit+0.000000001))
 			while budget>0:
 				var selected=-1
@@ -583,13 +606,15 @@ func logistics():
 					if e.saleFilters[ids[i]] and e.inputs.get(ids[i],0)>0: selected=i; break
 				if selected<0: break
 				var r=ids[selected]
+				if central_sales() and sale_price(e,r)>MAX_MONEY-int(state.cash):break
 				var paid=credit(sale_price(e,r));income+=paid;sold_here+=paid
 				add(e.inputs,r,-1)
 				add(state.totals.sold,r,1)
 				e.flowCredit=maxf(0,e.flowCredit-1)
 				budget-=1
 				e.saleCursor=(selected+1)%ids.size()
-				if r=="plank": event("first_auto_sale")
+				if r=="plank" or central_sales():event("first_auto_sale")
+				if central_sales():event("first_sale")
 			if world_mode() and sold_here>0:feedback_sale(sold_here,e.id)
 		if not e.paused and e.kind not in ["market","launchpad","generator"]: sources.append(e)
 		if not e.has("intakeCursors"): e.intakeCursors={}
@@ -647,7 +672,8 @@ func logistics():
 				e.flowCredit=maxf(0,e.flowCredit-1)
 				budgets[e.id]-=1
 				moved+=1
-				transfers.append({"sourceId":e.id,"targetId":target.id,"resource":r})
+				var output_direction=DIRS[int(e.splitDirections[p.port] if e.kind=="splitter" else e.direction)]
+				transfers.append({"sourceId":e.id,"targetId":target.id,"resource":r,"targetX":e.x+output_direction.x,"targetY":e.y+output_direction.y})
 		if moved==0: break
 
 func transport_space(target,r,source,snapshots,reserved) -> float:
@@ -662,7 +688,7 @@ func transport_space(target,r,source,snapshots,reserved) -> float:
 	if target.kind=="warehouse":
 		if world_mode():return 0 if backwards and target.get("dispatchResource")!=null else maxf(0,minf(capacity(target)-own.inputs.get(r,0)-used,storage_capacity(target)-target.inventory.get(r,0)-own.inputs.get(r,0)-used))
 		return 0 if backwards else maxf(0,capacity(target)-own.inputs.get(r,0)-used)
-	if world_mode() and is_project(target.kind):return maxf(0,minf(capacity(target)-own.inputs.get(r,0)-used,data.projects[target.kind].materials.get(r,0)-target.project.materials.get(r,0)-own.inputs.get(r,0)-used))
+	if world_mode() and is_project(target.kind):return 0 if central_sales() else maxf(0,minf(capacity(target)-own.inputs.get(r,0)-used,data.projects[target.kind].materials.get(r,0)-target.project.materials.get(r,0)-own.inputs.get(r,0)-used))
 	if target.kind=="market": return maxf(0,capacity(target)-own.inputs.get(r,0)-used) if target.saleFilters[r] else 0
 	var f=data.facilities[target.kind]
 	if not f.input.has(r) or (not f.output.is_empty() and backwards): return 0

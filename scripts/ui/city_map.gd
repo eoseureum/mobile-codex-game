@@ -39,7 +39,8 @@ func _ready():
 func focus_district(id="forest"):
 	if game==null:return
 	if game.world_mode():
-		zoom=clampf(size.x/(tile_size*6),0.5,1.0)
+		var visible_width=size.x*0.5 if size.x>size.y*1.3 else size.x
+		zoom=clampf(visible_width/(tile_size*8),0.18,1.0) if game.central_sales() else clampf(size.x/(tile_size*6),0.5,1.0)
 		focus_point(Vector2i(int(game.state.world.spawn.x),int(game.state.world.spawn.y)));return
 	var d=game.data.districts[id]
 	var n=maxf(3,game.state.districts[id].size)
@@ -138,7 +139,7 @@ func record_transfers():
 	for t in game.transfers:
 		if particles.size()>=50:break
 		if not game.state.entities.has(t.sourceId) or not game.state.entities.has(t.targetId):continue
-		particles.append({"sourceId":t.sourceId,"targetId":t.targetId,"a":Vector2(game.state.entities[t.sourceId].x+0.5,game.state.entities[t.sourceId].y+0.5),"b":Vector2(game.state.entities[t.targetId].x+0.5,game.state.entities[t.targetId].y+0.5),"r":t.resource,"duration":Conveyor.duration(game,game.state.entities[t.sourceId]),"age":0.0})
+		particles.append({"sourceId":t.sourceId,"targetId":t.targetId,"a":Vector2(game.state.entities[t.sourceId].x+0.5,game.state.entities[t.sourceId].y+0.5),"b":Vector2(t.get("targetX",game.state.entities[t.targetId].x)+0.5,t.get("targetY",game.state.entities[t.targetId].y)+0.5),"r":t.resource,"duration":Conveyor.duration(game,game.state.entities[t.sourceId]),"age":0.0})
 func _process(delta):
 	for p in particles:p.age+=delta
 	particles=particles.filter(func(p):return p.age<p.duration)
@@ -149,6 +150,11 @@ func tile_rect(x:int,y:int) -> Rect2:
 	var a=(camera+Vector2(x,y)*tile_size*zoom).round()
 	var b=(camera+Vector2(x+1,y+1)*tile_size*zoom).round()
 	return Rect2(a,b-a)
+func entity_screen_rect(e) -> Rect2:
+	var footprint=game.entity_rect(e)
+	var top=tile_rect(footprint.position.x,footprint.position.y).position
+	var bottom=tile_rect(footprint.end.x-1,footprint.end.y-1).end
+	return Rect2(top,bottom-top)
 func _sprite(kind:String,where:Rect2,frame=0):draw_texture_rect(Art.texture(kind,frame),where,false)
 func _corners(r:Rect2,color:Color):
 	var p=maxf(1,round(tile_size*zoom/32))
@@ -167,7 +173,10 @@ func _draw():
 	if game.world_mode():
 		for r in World.NODE_TYPES:known[r]=game.known_resource(r)
 	var occupied={}
-	for e in game.state.entities.values():occupied[Vector2i(int(e.x),int(e.y))]=true
+	for e in game.state.entities.values():
+		var footprint=game.entity_rect(e)
+		for y in range(footprint.position.y,footprint.end.y):
+			for x in range(footprint.position.x,footprint.end.x):occupied[Vector2i(x,y)]=true
 	var selected_id=game.at(selection.x,selection.y).get("id","")
 	var xmin=floori(-camera.x/unit)-1;var ymin=floori(-camera.y/unit)-1
 	var xmax=ceili((size.x-camera.x)/unit)+1;var ymax=ceili((size.y-camera.y)/unit)+1
@@ -189,7 +198,7 @@ func _draw():
 					if posmod(x*17+y*31,9)==0:_sprite("tree",r.grow(-unit*0.12))
 
 	for e in game.state.entities.values():
-		var r=tile_rect(int(e.x),int(e.y))
+		var r=entity_screen_rect(e)
 		if not r.intersects(Rect2(Vector2.ZERO,size)):continue
 		var anim=Motion.frame(Motion.phase(game,e))
 		if game.transport(e):
@@ -204,13 +213,13 @@ func _draw():
 				if cargo.count>1:
 					draw_string_outline(font,at+Vector2(unit*0.08,unit*0.18),str(cargo.count),HORIZONTAL_ALIGNMENT_LEFT,-1,maxi(10,int(unit*.19)),3,INK)
 					draw_string(font,at+Vector2(unit*0.08,unit*0.18),str(cargo.count),HORIZONTAL_ALIGNMENT_LEFT,-1,maxi(10,int(unit*.19)),Color("fff0ae"))
-		else:_sprite(e.kind,r,anim)
+		else:_sprite("sales_hub" if e.get("salesHub",false) else e.kind,r,anim)
 		if e.job!=null:
 			var percent=clampf(1-e.job.remaining/game.recipe(e).cycle,0,1)
 			var p=r.size.x/32
 			var bar=Rect2(r.position+Vector2(8,30)*p,Vector2(16,2)*p)
 			draw_rect(bar,Color("655d48"));draw_rect(Rect2(bar.position,Vector2(floor(16*percent)*p,bar.size.y)),Color("e8cf7d"))
-		if e.id==selected_id and not game.is_project(e.kind):
+		if e.id==selected_id and not game.is_project(e.kind) and not e.get("salesHub",false):
 			var d=Vector2(RustFactory.DIRS[int(e.direction)])
 			var p=r.size.x/32
 			var at=(r.get_center()+d*unit*0.39).round()
@@ -231,8 +240,9 @@ func _draw():
 		var ghost=tile_rect(opportunity.x,opportunity.y)
 		var ready=game.affordable(opportunity.cash,opportunity.materials)
 		var tint=Color(1,1,1,0.35+0.15*(0.5+0.5*sin(Time.get_ticks_msec()*0.003)))
-		draw_texture_rect(Art.texture(opportunity.kind),ghost,false,tint)
-		_corners(ghost.grow(-unit*0.02),Color("c5e49d") if ready else Color("f4d487"))
+		if opportunity.get("action","")!="connectMarket":
+			draw_texture_rect(Art.texture(opportunity.kind),ghost,false,tint)
+			_corners(ghost.grow(-unit*0.02),Color("c5e49d") if ready else Color("f4d487"))
 		for i in range(1,opportunity.path.size()):
 			var a=opportunity.path[i-1];var b=opportunity.path[i]
 			var start=tile_rect(a.x,a.y).get_center();var finish=tile_rect(b.x,b.y).get_center()

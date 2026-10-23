@@ -1,4 +1,5 @@
 extends SceneTree
+const Fixture=preload("res://tests/world_fixture.gd")
 const Factory=preload("res://scripts/core/factory.gd")
 const World=preload("res://scripts/core/world_map.gd")
 const Store=preload("res://scripts/core/save_store.gd")
@@ -12,7 +13,7 @@ func run():
 	check(ResourceLoader.exists("res://scripts/ui/opening_ux.gd"),"opening exposes only relevant choices and connected expansion previews")
 	if failures:quit(1);return
 	var UX=load("res://scripts/ui/opening_ux.gd")
-	var g=Factory.new();g.fresh(0,true,42)
+	var g=Factory.new();Fixture.empty(g)
 	check(UX.catalog(g)==["forest"],"empty land presents a single meaningful building choice")
 	check(not UX.feature(g,"inventory") and not UX.feature(g,"industry") and not UX.feature(g,"overview"),"empty land hides warehouse policies and future industry navigation")
 	g.command({"type":"build","kind":"forest","x":62,"y":64})
@@ -62,7 +63,7 @@ func run():
 		check(g.command(command)!="OK" and JSON.stringify(g.state)==before,"invalid linked construction is atomic")
 	var main=load("res://scenes/Main.tscn").instantiate();main.allow_save=false;main.busy=true;root.add_child(main)
 	await process_frame
-	main.game.fresh(0,true,42);main._focus_city();main._rebuild();main._layout()
+	Fixture.empty(main.game);main._focus_city();main._rebuild();main._layout()
 	var hidden_buttons=0
 	for b in main.nav.get_children():
 		if b.get_meta("tab") in ["industry","records"] and b.disabled and b.mouse_filter==Control.MOUSE_FILTER_IGNORE:hidden_buttons+=1

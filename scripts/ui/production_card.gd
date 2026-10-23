@@ -25,13 +25,13 @@ static func recipe_row(ui,e):
 	if f.input.is_empty():picture(ui,row,"tree" if e.kind=="forest" else "ore_"+e.mineResourceId)
 	ui._label(row,"→")
 	for r in f.output:resource(ui,row,r,f.output[r])
-	if e.id==game.state.factory.get("pioneerForestId","") and not game.recorded("first_auto_sale"):
+	if not game.central_sales() and e.id==game.state.factory.get("pioneerForestId","") and not game.recorded("first_auto_sale"):
 		ui._label(row,"→");picture(ui,row,"icon_coin");ui._label(row,game.money(game.sale_price(e,"log")))
 	if row is HBoxContainer:ui._spacer(row)
 	ui._bind_label(row,func():
 		var rate=game.speed(e)*(game.state.power.ratio if f.power>0 else 1.0)
 		return "Ⅱ" if e.paused or rate<=0 else "%.1fs"%(f.cycle/rate))
-	if not f.output.is_empty() and e.kind!="forest":
+	if not game.central_sales() and not f.output.is_empty() and e.kind!="forest":
 		var worth=ui._row();ui._spacer(worth);picture(ui,worth,"icon_coin")
 		ui._bind_label(worth,func():
 			var value=0;var depot=game.shipping_depot()
@@ -39,10 +39,12 @@ static func recipe_row(ui,e):
 			return "판매가 "+game.money(value))
 static func show(ui,e):
 	var game=ui.game;var f=game.recipe(e)
+	if e.get("salesHub",false):hub(ui,e);return
 	recipe_row(ui,e)
 	if f.cycle>0 and e.kind!="generator":
 		var progress=ProgressBar.new();progress.show_percentage=false;progress.custom_minimum_size.y=6*ui.scale_ui;ui.body.add_child(progress)
 		ui.bindings.append(func():if is_instance_valid(progress):progress.value=clampf(1-e.job.remaining/f.cycle,0,1)*100 if e.job!=null else 0)
+	if game.central_sales() and not f.output.is_empty() and not game.transport(e):collection(ui,e)
 	if e.kind=="warehouse":
 		var resources=Opening.handled_resources(game,e)
 		for resource_id in Panels.items(ui,"depot",resources,2):
@@ -54,7 +56,7 @@ static func show(ui,e):
 		return
 	var suggestion=Opening.suggestion(game,e)
 	ui.map.opportunity=suggestion
-	if e.kind=="forest" and e.id==game.state.factory.get("pioneerForestId","") and not game.recorded("first_sawmill"):
+	if not game.central_sales() and e.kind=="forest" and e.id==game.state.factory.get("pioneerForestId","") and not game.recorded("first_sawmill"):
 		var early=ui._row();ui._spacer(early)
 		var level=int(e.level);var income=int(e.get("incomeLevel",0))
 		var speed_button=ui._button(early,"%.1f → %.1f초\n₩ %s"%[f.cycle/game.speed(e),f.cycle/(game.speed(e)+0.12),game.money(f.upgradeCosts[mini(level-1,f.upgradeCosts.size()-1)])],func():ui._command({"type":"upgrade","entityId":e.id}))
@@ -66,13 +68,14 @@ static func show(ui,e):
 	var row=ui._row()
 	ui._spacer(row)
 	if not suggestion.is_empty():
-		var label=game.data.facilities[suggestion.kind].name+" + 연결\n₩ "+game.money(suggestion.cash)
+		var label=("제재소로 전환" if suggestion.get("action","")=="insertSawmill" else "판매소 연결" if suggestion.get("action","")=="connectMarket" else game.data.facilities[suggestion.kind].name+" + 연결")+"\n₩ "+game.money(suggestion.cash)
 		var button=ui._button(row,label,func():ui._build_linked(suggestion))
 		ui.bindings.append(func():
 			if not is_instance_valid(button):return
 			var ready=game.affordable(suggestion.cash,suggestion.materials);button.disabled=not ready
 			if not button.has_meta("ready") or button.get_meta("ready")!=ready:
 				button.set_meta("ready",ready);button.add_theme_stylebox_override("normal",ui._box(Color("e2b86b") if ready else Color("e5e5c3"))))
+		if game.central_sales():return
 		var savings=ProgressBar.new();savings.show_percentage=false;savings.custom_minimum_size.y=6*ui.scale_ui;ui.body.add_child(savings)
 		ui.bindings.append(func():if is_instance_valid(savings):savings.value=100.0*game.state.cash/maxf(1,suggestion.cash))
 	else:
@@ -80,4 +83,47 @@ static func show(ui,e):
 		connect.disabled=not game.world_mode() or (game.recipe(e).output.is_empty() and not game.transport(e))
 		if game.transport(e):
 			ui._bind_label(ui.body,func():return "%.1f개 / 초"%(1.5 if e.level==1 else 3.0))
-		else:ui._bind_label(ui.body,func():return game.status(e))
+		elif not game.central_sales():ui._bind_label(ui.body,func():return game.status(e))
+
+static func ready_count(e) -> int:
+	var total=0
+	for r in e.outputs:total+=int(e.outputs[r])
+	return total
+static func collection(ui,e):
+	var row=ui._row();row.name="CollectionRow"
+	var label=ui._bind_label(row,func():return "완료 %d개"%ready_count(e));label.clip_text=true;label.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var button=ui._button(row,"",func():ui._command({"type":"collect","entityId":e.id}));button.name="CollectButton"
+	button.custom_minimum_size=Vector2(100,48)*ui.scale_ui
+	ui.bindings.append(func():
+		if not is_instance_valid(button):return
+		button.text="수거 %d"%ready_count(e);button.disabled=ready_count(e)==0)
+static func hub(ui,e):
+	var game=ui.game
+	if ui.inspect_details:
+		var back=ui._row();ui._button(back,"가방",func():ui.inspect_details=false;ui._rebuild());ui._spacer(back)
+		ui._bind_label(back,func():return "판매 %.1f개/s"%(8*game.speed(e)*game.effects().loading/1.5))
+		var f=game.recipe(e);var level=int(e.level);var income=int(e.get("incomeLevel",0));var manager=int(e.get("managerLevel",0))
+		hub_upgrade(ui,"자동 판매 속도\nLv.%d → %d"%[level,level+1],f.upgradeCosts[mini(level-1,f.upgradeCosts.size()-1)],{"type":"upgrade","entityId":e.id},level>=f.maxLevel)
+		hub_upgrade(ui,"판매 단가\n+%d%% → +%d%%"%[income*12,(income+1)*12],f.incomeCosts[mini(income,9)],{"type":"upgradeIncome","entityId":e.id},income>=10)
+		hub_upgrade(ui,"매니저\n%d / 3"%manager,f.managerCosts[mini(manager,2)],{"type":"upgradeManager","entityId":e.id},manager>=3 or not game.recorded("first_auto_sale"))
+		return
+	var row=ui._row();ui._button(row,"개선",func():ui.inspect_details=true;ui._rebuild());ui._spacer(row)
+	var all_button=ui._button(row,"모두 판매",func():ui._command({"type":"sellInventory","entityId":e.id}));all_button.name="SellAllButton"
+	ui.bindings.append(func():
+		if is_instance_valid(all_button):all_button.disabled=game.state.bag.values().all(func(n):return n<=0))
+	var resources=game.data.resources.keys().filter(func(r):return game.stock(r)>0)
+	var shown=Panels.items(ui,"hub_bag",resources);var grid=Panels.grid(ui)
+	for resource_id in shown:
+		var r=resource_id;var cell=HBoxContainer.new();grid.add_child(cell);cell.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		picture(ui,cell,"item_"+r)
+		var amount=ui._bind_label(cell,func():return str(int(game.stock(r))));amount.clip_text=true;amount.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		var sell=ui._button(cell,"판매",func():ui._command({"type":"sellInventory","entityId":e.id,"resource":r}));sell.set_meta("sellResource",r)
+		sell.tooltip_text=ui._resource_name(r)+" · ₩ "+game.money(game.sale_price(e,r))+" / 개"
+		ui.bindings.append(func():if is_instance_valid(sell):sell.disabled=game.stock(r)<=0)
+	if resources.is_empty():ui._label(ui.body,"가방이 비어 있어요")
+	if resources.size()>4:Panels.pager(ui,"hub_bag",resources.size())
+	ui._bind_label(ui.body,func():return "자동 판매 %.1f개/s"%(8*game.speed(e)*game.effects().loading/1.5))
+static func hub_upgrade(ui,title,cost,command,locked):
+	var row=ui._row();var label=ui._label(row,title);label.clip_text=true;label.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var button=ui._button(row,"₩ "+ui.game.money(cost),func():ui._command(command))
+	ui.bindings.append(func():if is_instance_valid(button):button.disabled=locked or not ui.game.SalesHub.started(ui.game) or ui.game.state.cash<cost)

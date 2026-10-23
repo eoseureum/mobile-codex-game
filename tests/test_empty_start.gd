@@ -1,4 +1,5 @@
 extends SceneTree
+const Fixture=preload("res://tests/world_fixture.gd")
 const Factory=preload("res://scripts/core/factory.gd")
 const Store=preload("res://scripts/core/save_store.gd")
 var checks=0
@@ -10,7 +11,7 @@ func buy(g,kind,x,y):
 	var result=g.command({"type":"build","kind":kind,"x":x,"y":y})
 	check(result=="OK","paid construction: "+kind+" / "+result)
 func _initialize():
-	var g=Factory.new();g.fresh(0,true,42)
+	var g=Factory.new();Fixture.empty(g)
 	check(g.state.entities.is_empty(),"new city starts with no buildings")
 	check(g.state.cash==g.data.facilities.forest.cost,"starting cash buys exactly one logging camp")
 	if not g.state.entities.is_empty():quit(1);return
@@ -67,7 +68,7 @@ func _initialize():
 	check(g.command({"type":"demolish","entityId":g.at(62,64).id})=="OK","first income source can be redesigned")
 	var bad=store.snapshot(g);bad.state.factory.pioneerForestId=depot.id
 	check(not store.validate(bad).is_empty(),"save rejects on-site sales assigned to a non-forest")
-	var early=Factory.new();early.fresh(0,true,42);buy(early,"forest",62,64);
+	var early=Factory.new();Fixture.empty(early);buy(early,"forest",62,64);
 	while early.state.cash<900:early.advance(0.25)
 	buy(early,"warehouse",64,64);var first_depot=early.at(64,64)
 	buy(early,"warehouse",66,64)

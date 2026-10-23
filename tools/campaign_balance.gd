@@ -1,5 +1,5 @@
 extends SceneTree
-## Reproducible command-only, sequential batch campaign. No state mutation.
+## Historical pre-central-market command-only campaign and replay.
 const Factory=preload("res://scripts/core/factory.gd")
 const World=preload("res://scripts/core/world_map.gd")
 const Store=preload("res://scripts/core/save_store.gd")
@@ -32,7 +32,7 @@ func run():
 		if arg.begins_with("--replay="):replay_path=arg.get_slice("=",1)
 		if arg=="--opening-baseline":opening_baseline=true
 	if not replay_path.is_empty():replay();return
-	g=Factory.new();g.fresh(0,true,seed_value)
+	g=Factory.new();load("res://tests/world_fixture.gd").empty(g,seed_value)
 	if opening_baseline:probe_opening();return
 	checkpoint("fresh empty world")
 	var forest=build("forest",Vector2i(62,64))
@@ -317,7 +317,7 @@ func replay():
 		printerr("REPLAY requires completed trace");quit(1);return
 	if trace.catalogHash!=FileAccess.get_file_as_string("res://data/catalog.json").sha256_text():
 		printerr("REPLAY catalog differs from recorded campaign");quit(1);return
-	g=Factory.new();g.fresh(0,true,int(trace.seed))
+	g=Factory.new();load("res://tests/world_fixture.gd").empty(g,int(trace.seed))
 	var expenses={}
 	for action in trace.actions:
 		while g.state.clock.elapsedS<action.atS:g.tick()

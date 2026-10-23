@@ -1,4 +1,5 @@
 extends SceneTree
+const Fixture=preload("res://tests/world_fixture.gd")
 const Factory=preload("res://scripts/core/factory.gd")
 const Store=preload("res://scripts/core/save_store.gd")
 const World=preload("res://scripts/core/world_map.gd")
@@ -8,7 +9,7 @@ func check(v,m):
 	checks+=1
 	if not v:failures+=1;printerr("FAIL: "+m)
 func _initialize():
-	var g=Factory.new();g.fresh(0,true,42)
+	var g=Factory.new();Fixture.empty(g)
 	var f=g.data.facilities
 	check(f.sawmill.cost>=500 and f.sawmill.cost<=800,"sawmill sits in requested500–800 price band")
 	check(g.command({"type":"build","kind":"forest","x":62,"y":64})=="OK" and g.state.cash==0,"initial cash still funds only first logging camp")

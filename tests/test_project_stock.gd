@@ -1,4 +1,5 @@
 extends SceneTree
+const Fixture=preload("res://tests/world_fixture.gd")
 const Factory=preload("res://scripts/core/factory.gd")
 const Rules=preload("res://scripts/core/world_rules.gd")
 const Store=preload("res://scripts/core/save_store.gd")
@@ -8,7 +9,7 @@ func check(ok,message):
 	checks+=1
 	if not ok:failures+=1;printerr("FAIL: "+message)
 func city():
-	var g=Factory.new();g.fresh(0,true,42)
+	var g=Factory.new();Fixture.empty(g)
 	g.state.cash=100000000;g.state.stage="advanced";g.state.unlocks.offline=true
 	g.state.totals.produced={"plank":40,"wire":20,"machinePart":10}
 	for x in range(80,88):g.state.world.nodes.erase(g.key(x,80))

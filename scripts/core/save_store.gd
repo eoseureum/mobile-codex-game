@@ -34,11 +34,16 @@ func validate(snapshot) -> String:
 	if is_world and not World.valid_model(s.world):return "월드 지도 정보가 올바르지 않아요."
 	var game=Factory.new()
 	game.state=s
+	if s.factory.has("economyVersion") and (not is_world or s.factory.economyVersion!=2):return "도시 경제 형식이 올바르지 않아요."
+	var central=game.central_sales()
+	if central:
+		var hub=game.sales_hub()
+		if hub.get("kind","")!="market" or hub.get("salesHub")!=true or hub.get("x")!=65 or hub.get("y")!=63:return "중앙 판매소 정보가 올바르지 않아요."
 	var tier=game.data.stages.find(s.get("stage",""))
 	if tier<0 or not s.unlocks.get("offline") is bool or s.unlocks.get("offline")!=(tier>=4): return "산업 단계가 올바르지 않아요."
 	for id in game.data.districts:
 		if not s.districts.get(id) is Dictionary or not whole(s.districts[id].get("size"),0,6) or int(s.districts[id].size) not in ([1,2,3,6] if id=="forest" else [0,3,6]): return "토지 정보가 올바르지 않아요."
-	if s.entities.size()>(World.MAX_ENTITIES if is_world else 216) or s.records.size()>100 or s.recentSales.size()>20000 or s.corridors.size()>216: return "저장 데이터가 너무 커요."
+	if s.entities.size()>(game.entity_limit() if is_world else 216) or s.records.size()>100 or s.recentSales.size()>20000 or s.corridors.size()>216: return "저장 데이터가 너무 커요."
 	if not (s.clock.get("elapsedS") is int or s.clock.get("elapsedS") is float): return "도시 시각이 올바르지 않아요."
 	if not whole(s.clock.get("tickIndex")) or not whole(s.clock.get("elapsedS",-1)*4) or abs(s.clock.elapsedS-s.clock.tickIndex*0.25)>0.000001: return "도시 시각이 올바르지 않아요."
 	if not s.clock.get("carryS") is float and not s.clock.get("carryS") is int: return "도시 시각이 올바르지 않아요."
@@ -64,9 +69,17 @@ func validate(snapshot) -> String:
 			if e.kind=="warehouse":
 				if not resources(e.get("inventory")) or not e.get("autoSell") is bool:return "개별 창고 재고가 올바르지 않아요."
 				if not (e.get("localSaleCredit") is int or e.get("localSaleCredit") is float) or not is_finite(float(e.localSaleCredit)) or e.localSaleCredit<0 or e.localSaleCredit>2:return "창고 판매 정보가 올바르지 않아요."
-		var point=game.key(e.x,e.y)
-		if positions.has(point) or int(id.substr(1))>=s.nextId: return "시설이 겹치거나 식별자가 올바르지 않아요."
-		positions[point]=true
+		if e.has("salesHub"):
+			if not e.salesHub is bool or not central or not e.salesHub or e.id!=s.factory.salesHubId:return "중앙 판매소 정보가 올바르지 않아요."
+		if central and e.kind in ["warehouse","market"] and e.id!=s.factory.salesHubId:return "사용하지 않는 창고 정보가 있어요."
+		if int(id.substr(1))>=s.nextId:return "시설 식별자가 올바르지 않아요."
+		var area=game.entity_rect(e)
+		for yy in range(area.position.y,area.end.y):
+			for xx in range(area.position.x,area.end.x):
+				var point=game.key(xx,yy)
+				if positions.has(point):return "시설이 겹쳐 있어요."
+				if e.get("salesHub",false) and not World.resource_at(s.world,xx,yy).is_empty():return "판매소 부지가 올바르지 않아요."
+				positions[point]=true
 		if not resources(e.get("inputs"),game.capacity(e)) or not resources(e.get("outputs"),game.capacity(e)) or not e.get("queue") is Array or not e.get("saleFilters") is Dictionary or not e.get("intakeCursors",{}) is Dictionary: return "시설 재고가 올바르지 않아요."
 		if e.queue.size()>(4 if e.level==1 else 8) or (not game.transport(e) and not e.queue.is_empty()): return "컨베이어 재고가 올바르지 않아요."
 		for r in e.queue:
@@ -92,7 +105,8 @@ func validate(snapshot) -> String:
 			if p.remainingS<0 or p.remainingS>game.data.projects[e.kind].seconds or e.investedCash!=f.cost: return "공사 진행이 올바르지 않아요."
 			for r in p.materials:
 				if p.materials[r]>game.data.projects[e.kind].materials.get(r,0): return "공사 재료가 너무 많아요."
-			if p.complete and (p.remainingS!=0 or not game.has_stock(p.materials,game.data.projects[e.kind].materials)): return "미완성 공사예요."
+			if central and not p.materials.is_empty():return "공사 자재 정보가 올바르지 않아요."
+			if p.complete and (p.remainingS!=0 or (not central and not game.has_stock(p.materials,game.data.projects[e.kind].materials))): return "미완성 공사예요."
 	if s.factory.has("startMode"):
 		if not is_world or s.factory.startMode!="empty" or not s.factory.get("pioneerForestId") is String:return "시작 시설 정보가 올바르지 않아요."
 		var pioneer=s.entities.get(s.factory.pioneerForestId,{})

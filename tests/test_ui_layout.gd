@@ -12,7 +12,7 @@ func run():
 	main.busy=true
 	root.add_child(main)
 	await process_frame
-	main.game.fresh(0,true,42);main._focus_city();main._rebuild()
+	Fixture.empty(main.game);main._focus_city();main._rebuild()
 	check(main.game.state.entities.is_empty() and main.selected.is_empty(),"empty city focuses safely without an e1 building")
 	check(main.handle.text.begins_with("벌목장 건설"),"first construction is visible in the floating handle")
 	check(not main._cost("forest").contains("판자"),"first logging camp price has no impossible plank requirement")

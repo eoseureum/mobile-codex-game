@@ -1,4 +1,5 @@
 extends SceneTree
+const Fixture=preload("res://tests/world_fixture.gd")
 const Factory=preload("res://scripts/core/factory.gd")
 const Store=preload("res://scripts/core/save_store.gd")
 var checks=0
@@ -7,7 +8,7 @@ func check(v,m):
 	checks+=1
 	if not v:failures+=1;printerr("FAIL: "+m)
 func _initialize():
-	var g=Factory.new();g.fresh(0,true,42)
+	var g=Factory.new();Fixture.empty(g)
 	check(g.command({"type":"build","kind":"forest","x":62,"y":64})=="OK","paid first camp")
 	var e=g.at(62,64);g.state.cash=10000;g.state.bag={}
 	var before=g.state.cash
@@ -25,7 +26,7 @@ func _initialize():
 	var belt=g.create_entity("belt",63,64,{"investedCash":100});belt.queue=["log","plank"]
 	before=g.state.cash
 	check(g.command({"type":"rotate","entityId":belt.id,"direction":2})=="OK" and belt.queue==["log","plank"] and g.state.cash==before,"loaded rotation preserves units and cash")
-	var newgame=Factory.new();newgame.fresh(0,true,42);newgame.command({"type":"build","kind":"forest","x":62,"y":64})
+	var newgame=Factory.new();Fixture.empty(newgame);newgame.command({"type":"build","kind":"forest","x":62,"y":64})
 	for i in range(3):
 		newgame.command({"type":"demolish","entityId":newgame.at(62,64).id})
 		check(newgame.state.cash==2250,"recovery refund never creates profit")
@@ -55,7 +56,7 @@ func _initialize():
 	check(untouched.command({"type":"buildRoute","from":{"x":64,"y":64},"to":{"x":64,"y":65}})=="OK","existing factory can be rerouted without a logging camp")
 	check(untouched.command({"type":"clearArea","from":{"x":59,"y":69},"to":{"x":59,"y":69}})=="OK","remaining city can clear terrain without a logging camp")
 	check(store.validate(store.snapshot(untouched)).is_empty(),"forest-free factory save remains valid")
-	var restart=Factory.new();restart.fresh(0,true,42)
+	var restart=Factory.new();Fixture.empty(restart)
 	restart.command({"type":"build","kind":"forest","x":62,"y":64});restart.advance(300)
 	check(restart.command({"type":"buildLinked","sourceId":"e1","kind":"sawmill","x":64,"y":64})=="OK","recovery test pays for first processing line")
 	restart.command({"type":"demolish","entityId":restart.at(64,64).id});restart.advance(600)

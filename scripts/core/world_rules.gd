@@ -11,7 +11,9 @@ static func setup(game,seed_value:int):
 	game.state.cash=game.data.facilities.forest.cost
 	game.state.factory.startMode="empty";game.state.factory.pioneerForestId=""
 	game.invalidate_index()
+	game.upgrade_world()
 static func pioneer_sale(game,e):
+	if game.central_sales():return
 	if e.id!=game.state.factory.get("pioneerForestId","") or e.kind!="forest":return
 	e.pioneerCycles+=1
 	var d=game.DIRS[int(e.direction)];var target=game.at(e.x+d.x,e.y+d.y)
@@ -25,6 +27,7 @@ static func pioneer_sale(game,e):
 	game.sale(game.credit(game.sale_price(e,"log")),"market",e.id)
 static func stock(game,r) -> int:
 	var n=int(game.state.bag.get(r,0))
+	if game.central_sales():return n
 	for e in game.state.entities.values():
 		if e.kind=="warehouse":n+=int(e.get("inventory",{}).get(r,0))
 	return n
@@ -36,6 +39,9 @@ static func remove_materials(game,recipe:Dictionary):
 			if e.kind!="warehouse" or remaining<=0:continue
 			used=mini(remaining,int(e.inventory.get(r,0)));game.add(e.inventory,r,-used);remaining-=used
 static func deposit(game,resources:Dictionary,at:Vector2i,excluded=""):
+	if game.central_sales():
+		for r in resources:game.add(game.state.bag,r,resources[r])
+		return
 	var closest={};var distance=999999
 	for e in game.state.entities.values():
 		if e.kind!="warehouse" or e.id==excluded:continue
@@ -63,6 +69,9 @@ static func migrate(game,seed_value) -> String:
 	game.state.world.revision+=1;game.invalidate_index();game.event("open_world")
 	return "OK"
 static func command(game,c:Dictionary) -> String:
+	if game.central_sales():
+		var result=game.SalesHub.command(game,c)
+		if result!="PASS":return result
 	var e=game.state.entities.get(c.get("entityId",""),{})
 	match c.get("type",""):
 		"expand","setMineResource":return "LOCKED"
@@ -79,7 +88,7 @@ static func command(game,c:Dictionary) -> String:
 			if (kind=="forest" and r!="log") or (kind=="mine" and r not in ["stone","coal","copper","iron"]):return "RESOURCE_REQUIRED"
 			if kind=="mine" and r=="iron" and game.stage_index()<3:return "LOCKED"
 			if kind not in ["forest","mine"] and not r.is_empty():return "BLOCKED"
-			if game.state.entities.size()>=World.MAX_ENTITIES:return "TOO_LARGE"
+			if game.state.entities.size()>=game.entity_limit():return "TOO_LARGE"
 			if game.is_project(kind):
 				for existing in game.state.entities.values():
 					if existing.kind==kind:return "LOCKED"
@@ -101,7 +110,7 @@ static func command(game,c:Dictionary) -> String:
 				for cell in linked.cells:game.create_entity("belt",cell.x,cell.y,{"direction":cell.direction,"investedCash":game.data.facilities.belt.cost})
 				game.event("first_route")
 		"clearArea","buildRoute":
-			if game.state.factory.get("startMode","")=="empty" and game.state.factory.pioneerForestId.is_empty() and game.state.entities.is_empty():return "LOCKED"
+			if game.state.factory.get("startMode","")=="empty" and game.state.factory.pioneerForestId.is_empty() and (not game.SalesHub.started(game) if game.central_sales() else game.state.entities.is_empty()):return "LOCKED"
 			var quote=World.clear_quote(game,c.get("from"),c.get("to")) if c.type=="clearArea" else World.route_quote(game,c.get("from"),c.get("to"),c.get("clear",false))
 			if not quote.ok:return quote.code
 			if game.state.cash<quote.cash:return "INSUFFICIENT_CASH"
@@ -167,6 +176,10 @@ static func project_step(game):
 	for e in game.state.entities.values():
 		if not game.is_project(e.kind) or e.paused or e.project.complete:continue
 		var p=e.project;var definition=game.data.projects[e.kind]
+		if game.central_sales():
+			p.remainingS=maxf(0,p.remainingS-game.DT)
+			if p.remainingS==0:p.complete=true;game.event("complete_"+e.kind);game.clear_effects()
+			continue
 		for r in definition.materials:
 			var n=mini(int(definition.materials[r]-p.materials.get(r,0)),int(e.inputs.get(r,0)))
 			game.add(e.inputs,r,-n);game.add(p.materials,r,n)
@@ -200,6 +213,7 @@ static func trade_step(game):
 	t.rewardEarned=mini(game.MAX_MONEY,int(t.rewardEarned)+income);t.completed+=1;t.active=null;t.cooldownS=game.effects().cooldown
 	game.event("first_shipment");game.sale(income,"shipment",depot.id)
 static func warehouse_step(game):
+	if game.central_sales():project_step(game);return
 	var warehouses=[]
 	for e in game.state.entities.values():
 		if e.kind!="warehouse" or e.paused:continue
