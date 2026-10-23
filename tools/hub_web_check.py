@@ -85,12 +85,11 @@ with sync_playwright() as p:
         page.wait_for_timeout(500)
 
     start = backup()
-    assert start["cash"] == 2250 and len(start["entities"]) == 1, start
-    hub = next(iter(start["entities"].values()))
+    assert start["cash"] == 0 and len(start["entities"]) == 2, start
+    hub = next(e for e in start["entities"].values() if e.get("salesHub"))
     assert hub["salesHub"] and hub["investedCash"] == 0, hub
     page.screenshot(path="/tmp/rust-city-hub-opening.png")
     tap(97, 397)
-    tap(280, 660, 650)
     page.screenshot(path="/tmp/rust-city-hub-camp.png")
     for _ in range(12):
         page.wait_for_timeout(2000)
@@ -103,7 +102,7 @@ with sync_playwright() as p:
     tap(310, 605)
     collected = backup()
     assert collected["bag"].get("log", 0) > 0 and collected["cash"] == 0, collected
-    print("PASS actual touch camp construction, retained production and fixed collection control", flush=True)
+    print("PASS prebuilt camp, retained production and fixed collection control", flush=True)
     tap(340, 48)
     page.screenshot(path="/tmp/rust-city-hub-bag.png")
     tap(320, 674)

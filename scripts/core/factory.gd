@@ -356,7 +356,7 @@ func effects() -> Dictionary:
 			if e.kind=="cabin": result.operating=1.25
 			if e.kind=="cityWorkshop": result.shipment=1.1
 			if e.kind=="dispatchOffice": result.loading=1.8; result.cooldown=16.0
-	if central_sales():result.operating*=result.shipment
+	if central_sales():result.operating*=result.shipment*result.loading/1.5
 	if world_mode():_effects_cache=result
 	return result
 
@@ -594,9 +594,10 @@ func logistics():
 		var area=entity_rect(e)
 		for y in range(area.position.y,area.end.y):
 			for x in range(area.position.x,area.end.x):index[key(x,y)]=e
-		if e.kind=="market" and not e.paused:
+		if e.get("salesHub",false) and central_sales():SalesHub.sell_arrivals(self,e)
+		elif e.kind=="market" and not e.paused:
 			var sold_here=0
-			var rate=8*speed(e)*effects().loading/1.5 if central_sales() else 2*speed(e)
+			var rate=2*speed(e)
 			e.flowCredit=minf(rate,e.flowCredit+DT*rate)
 			var budget=int(floor(e.flowCredit+0.000000001))
 			while budget>0:
@@ -606,15 +607,13 @@ func logistics():
 					if e.saleFilters[ids[i]] and e.inputs.get(ids[i],0)>0: selected=i; break
 				if selected<0: break
 				var r=ids[selected]
-				if central_sales() and sale_price(e,r)>MAX_MONEY-int(state.cash):break
 				var paid=credit(sale_price(e,r));income+=paid;sold_here+=paid
 				add(e.inputs,r,-1)
 				add(state.totals.sold,r,1)
 				e.flowCredit=maxf(0,e.flowCredit-1)
 				budget-=1
 				e.saleCursor=(selected+1)%ids.size()
-				if r=="plank" or central_sales():event("first_auto_sale")
-				if central_sales():event("first_sale")
+				if r=="plank":event("first_auto_sale")
 			if world_mode() and sold_here>0:feedback_sale(sold_here,e.id)
 		if not e.paused and e.kind not in ["market","launchpad","generator"]: sources.append(e)
 		if not e.has("intakeCursors"): e.intakeCursors={}
@@ -665,6 +664,8 @@ func logistics():
 				if transport(e): e.queue.pop_front(); snapshots[e.id].queue.pop_front()
 				else: add(e.outputs,r,-1); add(snapshots[e.id].outputs,r,-1)
 				if target.kind=="launchpad": add(state.rocket.delivered,r,1)
+				elif target.get("salesHub",false) and central_sales():
+					add(target.inputs,r,1);SalesHub.sell_arrivals(self,target)
 				elif transport(target): target.queue.append(r)
 				else: add(target.inputs,r,1)
 				target.intakeCursors[p.resourceKey]=int(e.id.substr(1))
@@ -684,6 +685,7 @@ func transport_space(target,r,source,snapshots,reserved) -> float:
 	var dir=DIRS[int(target.direction)]
 	var backwards=source.x==target.x+dir.x and source.y==target.y+dir.y
 	if target.kind=="launchpad": return maxf(0,data.rocket.get(r,0)-state.rocket.delivered.get(r,0))
+	if target.get("salesHub",false) and central_sales():return 1 if sale_price(target,r)<=MAX_MONEY-int(state.cash) else 0
 	if transport(target): return 0 if backwards else maxf(0,(4 if target.level==1 else 8)-own.queue.size()-used)
 	if target.kind=="warehouse":
 		if world_mode():return 0 if backwards and target.get("dispatchResource")!=null else maxf(0,minf(capacity(target)-own.inputs.get(r,0)-used,storage_capacity(target)-target.inventory.get(r,0)-own.inputs.get(r,0)-used))

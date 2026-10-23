@@ -12,6 +12,8 @@ static func setup(game,seed_value:int):
 	game.state.factory.startMode="empty";game.state.factory.pioneerForestId=""
 	game.invalidate_index()
 	game.upgrade_world()
+	# Use the ordinary paid build so recovery and saved investment stay consistent.
+	game.command({"type":"build","kind":"forest","x":62,"y":64})
 static func pioneer_sale(game,e):
 	if game.central_sales():return
 	if e.id!=game.state.factory.get("pioneerForestId","") or e.kind!="forest":return

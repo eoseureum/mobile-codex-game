@@ -114,6 +114,9 @@ func _ready():
 		await _ui_test()
 
 func _focus_city():
+	if game.central_sales() and not game.recorded("first_collection") and not game.recorded("first_sale"):
+		var pioneer=game.state.entities.get(game.state.factory.get("pioneerForestId",""),{})
+		if not pioneer.is_empty():selected=pioneer.id
 	if game.central_sales() and not game.SalesHub.started(game):
 		selected="";selected_tile=Vector2i(62,64);map.selection=selected_tile
 		game.invalidate_index();game.clear_effects();world_tools.reset();map.focus_district();return
@@ -456,7 +459,7 @@ func _district(id):
 func _project_effect(kind):
 	if game.central_sales():
 		if kind=="cityWorkshop":return "판매 단가 +10%"
-		if kind=="dispatchOffice":return "자동 판매 속도 +20%"
+		if kind=="dispatchOffice":return "판매 단가 +20%"
 	return "판매 단가 +25%" if game.world_mode() and kind=="cabin" else game.data.projects[kind].effect
 func _industry():
 	if game.world_mode():Panels.industry(self);return
