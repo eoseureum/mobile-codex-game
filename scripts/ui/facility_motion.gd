@@ -6,7 +6,7 @@ static func phase(game,e) -> float:
 	if e.get("salesHub",false):return fposmod(time*0.7,1.0)
 	var f=game.recipe(e)
 	if f.cycle>0 and not f.output.is_empty():
-		var rate=game.speed(e)*(game.state.power.ratio if f.power>0 else 1.0)
+		var rate=game.work_rate(e)
 		if rate<=0:return -1.0
 		if e.job==null:
 			if not game.has_stock(e.inputs,f.input) or not game.output_fits(e,f.output):return -1.0
@@ -15,8 +15,8 @@ static func phase(game,e) -> float:
 		return clampf(1.0-e.job.remaining/f.cycle+game.state.clock.carryS*rate/f.cycle,0.0,0.999999)
 	if game.transport(e):
 		if e.queue.is_empty() or not can_send(game,e,e.queue[0]):return -1.0
-		return fposmod(time*(1.5 if e.level==1 else 3.0),1.0)
-	if e.kind=="generator":return fposmod(time*game.speed(e),1.0) if e.burnRemainingS>0 else -1.0
+		return fposmod(time*game.transport_rate(e),1.0)
+	if e.kind=="generator":return clampf(1-e.burnRemainingS/game.GENERATOR_BURN_S+game.state.clock.carryS/game.GENERATOR_BURN_S,0,0.999999) if e.burnRemainingS>0 else -1.0
 	var order=game.state.factory.get("trade",{}).get("active")
 	if e.kind=="warehouse":
 		if e==game.shipping_depot() and order!=null:return fposmod(time*game.effects().loading,1.0)

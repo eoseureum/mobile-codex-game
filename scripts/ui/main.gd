@@ -428,7 +428,7 @@ func _facility():
 			var level=int(e.get("managerLevel",0))
 			_action(("교육" if level>0 else "배치")+" · ₩ "+Factory.money(f.managerCosts[mini(level,2)])+("" if game.world_mode() else " · 판자 3"),{"type":"upgradeManager","entityId":e.id},level>=3 or not game.recorded("first_auto_sale"))
 		_section("생산 개선 · Lv.%d"%e.level)
-		if f.cycle>0:_label(body,"%.2f초 → %.2f초"%[f.cycle/game.speed(e),f.cycle/(game.speed(e)+0.12)])
+		if f.cycle>0:_bind_label(body,func():return FacilityTabs.effect(game,e,0.12 if e.level<f.maxLevel else 0.0))
 		_action("생산 개선 · ₩ "+Factory.money(f.upgradeCosts[int(e.level)-1]),{"type":"upgrade","entityId":e.id},e.level>=f.maxLevel)
 	var row=_row();_spacer(row)
 	var demolish=_button(row,"철거",func():_demolish(e))

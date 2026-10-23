@@ -20,6 +20,10 @@ static func recipe_row(ui,e):
 		picture(ui,row,"warehouse");ui._label(row,"→");picture(ui,row,"icon_coin")
 		ui._spacer(row);ui._bind_label(row,func():return "초과분 판매" if e.autoSell else "보관 중")
 		return
+	if e.kind=="generator":
+		resource(ui,row,"coal",1);ui._label(row,"→")
+		ui._bind_label(row,func():return "전력 %.2f"%game.generator_output(e));ui._spacer(row)
+		ui._label(row,"%.1f초"%game.GENERATOR_BURN_S);return
 	if f.output.is_empty():ui._bind_label(row,func():return game.status(e));return
 	for r in f.input:resource(ui,row,r,f.input[r])
 	if f.input.is_empty():picture(ui,row,"tree" if e.kind=="forest" else "ore_"+e.mineResourceId)
@@ -29,7 +33,7 @@ static func recipe_row(ui,e):
 		ui._label(row,"→");picture(ui,row,"icon_coin");ui._label(row,game.money(game.sale_price(e,"log")))
 	if row is HBoxContainer:ui._spacer(row)
 	ui._bind_label(row,func():
-		var rate=game.speed(e)*(game.state.power.ratio if f.power>0 else 1.0)
+		var rate=game.work_rate(e)
 		return "Ⅱ" if e.paused or rate<=0 else "%.1fs"%(f.cycle/rate))
 	if not game.central_sales() and not f.output.is_empty() and e.kind!="forest":
 		var worth=ui._row();ui._spacer(worth);picture(ui,worth,"icon_coin")
@@ -82,7 +86,7 @@ static func show(ui,e):
 		var connect=ui._button(row,"연결",func():ui.world_tools.begin("route");ui.world_tools.origin={"x":int(e.x),"y":int(e.y)};ui.map.work_origin=Vector2i(int(e.x),int(e.y));ui._layout_title())
 		connect.disabled=not game.world_mode() or (game.recipe(e).output.is_empty() and not game.transport(e))
 		if game.transport(e):
-			ui._bind_label(ui.body,func():return "%.1f개 / 초"%(1.5 if e.level==1 else 3.0))
+			ui._bind_label(ui.body,func():return "%.1f개 / 초"%game.transport_rate(e))
 		elif not game.central_sales():ui._bind_label(ui.body,func():return game.status(e))
 
 static func ready_count(e) -> int:

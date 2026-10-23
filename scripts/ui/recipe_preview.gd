@@ -41,11 +41,11 @@ static func show(ui,kind,install=Callable()):
 	if f.input.is_empty():ui._label(inputs,"광맥" if kind=="mine" else "숲" if kind=="forest" else "원료 없음")
 	ui._label(row,"→")
 	var outputs=VBoxContainer.new();row.add_child(outputs)
-	if kind=="generator":ui._label(outputs,"전력 +12")
+	if kind=="generator":ui._label(outputs,"전력 +%d"%game.GENERATOR_OUTPUT)
 	elif kind=="mine":ui._label(outputs,"해당 광물 × 1")
 	else:
 		for r in f.output:chip(ui,outputs,r,f.output[r])
-	var timing=ui._label(column,"%.1f초 / 회"%(10.0 if kind=="generator" else f.cycle)+(" · 전력 %d"%f.power if f.power>0 else ""));timing.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	var timing=ui._label(column,"%.1f초 / 회"%(game.GENERATOR_BURN_S if kind=="generator" else f.cycle)+(" · 전력 %d"%f.power if f.power>0 else ""));timing.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 	var width=minf(330,ui.size.x/u-24)
 	column.custom_minimum_size=Vector2(minf(286,width-24),0)*u
 	ui.dialog.reset_size();ui.dialog.popup_centered(Vector2i(int(width*u),0))

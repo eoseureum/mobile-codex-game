@@ -51,7 +51,9 @@ jobs:
       - name: Check opening discovery and atomic connected expansion
         run: godot --headless --path . --script tests/test_opening_ux.gd
       - name: Check production-driven facility animations
-        run: godot --headless --path . --script tests/test_motion.gd
+        run: |
+          godot --headless --path . --script tests/test_motion.gd
+          godot --headless --path . --script tests/test_upgrade_accuracy.gd
       - name: Check stable production controls
         run: godot --headless --path . -- --ui-check
       - name: Check floating layout and touch targets

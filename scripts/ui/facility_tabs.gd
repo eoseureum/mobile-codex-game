@@ -35,19 +35,33 @@ static func show(ui,e):
 			Panels.pager(ui,"facility_stock",resources.size(),limit)
 		_:
 			var level=int(e.level)
-			var production="생산 · Lv.%d"%level
-			if e.kind=="warehouse":production="창고 확장\n%d → %d개 · %.2f → %.2f개/s"%[game.storage_capacity(e),game.storage_capacity(e)+200,2*game.speed(e),2*(game.speed(e)+0.12)]
-			elif f.cycle>0:production+="\n%.1f → %.1f초"%[f.cycle/game.speed(e),f.cycle/(game.speed(e)+0.12)]
-			upgrade(ui,production,"₩ "+game.money(f.upgradeCosts[mini(level-1,f.upgradeCosts.size()-1)]),{"type":"upgrade","entityId":e.id},level>=f.maxLevel)
+			upgrade(ui,func():return production_title(game,e),"₩ "+game.money(f.upgradeCosts[mini(level-1,f.upgradeCosts.size()-1)]),{"type":"upgrade","entityId":e.id},level>=f.maxLevel or (game.transport(e) and game.stage_index()<4))
 			if game.income_facility(e):
 				var income=int(e.get("incomeLevel",0));upgrade(ui,"판매 단가\n+%d%% → +%d%%"%[income*12,(income+1)*12],"₩ "+game.money(f.incomeCosts[mini(income,9)]),{"type":"upgradeIncome","entityId":e.id},income>=10)
 			if e.kind not in ["belt","splitter"]:
-				var manager=int(e.get("managerLevel",0));var title="매니저 · %d / 3"%manager if game.recorded("first_auto_sale") else "?"
-				if game.recorded("first_auto_sale"):
-					title+="\n판매 %.2f → %.2f개/s"%[2*game.speed(e),2*(game.speed(e)+0.08)] if e.kind=="warehouse" else "\n속도 +%d%% → +%d%%"%[manager*8,(manager+1)*8]
-				upgrade(ui,title,"₩ "+game.money(f.managerCosts[mini(manager,2)]),{"type":"upgradeManager","entityId":e.id},manager>=3 or not game.recorded("first_auto_sale"))
+				var manager=int(e.get("managerLevel",0))
+				upgrade(ui,func():return manager_title(game,e),"₩ "+game.money(f.managerCosts[mini(manager,2)]),{"type":"upgradeManager","entityId":e.id},manager>=3 or not game.recorded("first_auto_sale"))
+static func effect(game,e,bonus) -> String:
+	if e.kind=="generator":return "전력 %.2f → %.2f"%[game.generator_output(e),game.generator_output(e,bonus)]
+	if e.kind=="market":return "판매 %.2f → %.2f개/s"%[2*game.speed(e),2*(game.speed(e)+bonus)]
+	if game.transport(e):return "%.2f → %.2f개/s"%[game.transport_rate(e),game.transport_rate(e,bonus>0)]
+	var f=game.recipe(e)
+	if f.cycle<=0:return ""
+	var before=game.work_rate(e,0,true);var after=game.work_rate(e,bonus,true)
+	if before<=0 or after<=0:return "전력 대기"
+	return "%.1f → %.1f초"%[f.cycle/before,f.cycle/after]
+static func production_title(game,e) -> String:
+	var f=game.recipe(e);var level=int(e.level)
+	if e.kind=="warehouse":return "창고 확장\n%d → %d개 · %.2f → %.2f개/s"%[game.storage_capacity(e),game.storage_capacity(e)+200,2*game.speed(e),2*(game.speed(e)+0.12)]
+	var name="발전" if e.kind=="generator" else "운송" if game.transport(e) else "생산"
+	return name+" · Lv.%d\n"%level+effect(game,e,0.12 if level<f.maxLevel else 0.0)
+static func manager_title(game,e) -> String:
+	if not game.recorded("first_auto_sale"):return "?"
+	var manager=int(e.get("managerLevel",0));var title="매니저 · %d / 3"%manager
+	if e.kind=="warehouse":return title+"\n판매 %.2f → %.2f개/s"%[2*game.speed(e),2*(game.speed(e)+0.08)]
+	return title+"\n"+effect(game,e,0.08 if manager<3 else 0.0)
 static func upgrade(ui,title,cost,command,disabled):
-	var row=ui._row();var label=ui._label(row,title);label.clip_text=true;label.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var row=ui._row();var label=ui._bind_label(row,title) if title is Callable else ui._label(row,title);label.clip_text=true;label.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	var b=ui._button(row,cost,func():ui._command(command));b.disabled=disabled
 static func project(ui,e):
 	var game=ui.game;var rocket=e.kind=="launchpad";var definition=game.data.rocket if rocket else game.data.projects[e.kind].materials
