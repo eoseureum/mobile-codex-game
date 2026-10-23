@@ -24,19 +24,19 @@ func settle():
 func run():
 	var g=Factory.new();g.fresh(0,true,42)
 	check(UX.feature(g,"inventory"),"bag is available before first construction")
-	check(UX.catalog(g)==["forest"],"free public hub does not count as a started factory")
-	g.command({"type":"build","kind":"forest","x":62,"y":64});var camp=g.at(62,64)
+	check("belt" in UX.catalog(g) and "warehouse" not in UX.catalog(g),"starter camp exposes usable construction without warehouses")
+	var camp=g.at(62,64)
 	var q=UX.suggestion(g,camp)
 	check(q.get("action","")=="connectMarket" and q.get("cash",0)==150 and q.get("cells",[]).size()==2,"first expansion is a two-belt 150-cash hub connection")
 	check(UX.feature(g,"logistics"),"logistics unlock after the first camp")
 	check(not "warehouse" in UX.catalog(g,true) and not "market" in UX.catalog(g,true),"catalog never offers retired warehouses or duplicate hubs")
 	var ui=load("res://scenes/Main.tscn").instantiate();ui.allow_save=false;ui.busy=true;root.add_child(ui);await settle()
 	ui.game.fresh(0,true,42);ui._focus_city();ui._rebuild();ui._layout();await settle()
-	check(ui.selected=="" and ui.selected_tile==Vector2i(62,64),"new city highlights the first tree without selecting hub")
+	check(ui.selected==ui.game.at(62,64).id and ui.selected_tile==Vector2i(62,64),"new city selects its ready logging camp")
 	ui._tile(Vector2i(62,64));await settle()
-	check(buttons(ui.body).filter(func(b):return "부지 정리" in b.text or "컨베이어" in b.text).is_empty(),"free hub does not expose logistics before first camp")
+	check(named(ui.body,"CollectButton")!=null,"opening immediately exposes production collection")
 	check(ui.header.get_node("WarehouseButton").visible and ui.header.get_node("WarehouseButton/Caption").text=="가방","always-visible bag replaces warehouse caption")
-	ui.game.command({"type":"build","kind":"forest","x":62,"y":64});camp=ui.game.at(62,64)
+	camp=ui.game.at(62,64)
 	ui.selected=camp.id;ui.sheet_fraction=0.42;ui._rebuild();ui._layout();await settle()
 	var collect=named(ui.body,"CollectButton")
 	check(collect!=null,"production card has a dedicated collection control")
@@ -69,12 +69,13 @@ func run():
 		ui._tile(Vector2i(67,65));await settle()
 		check(ui.selected==hub.id,"every footprint tile selects the hub")
 		check(named(ui.body,"SellAllButton")!=null,"hub offers sell all")
+		check("도착 즉시 판매" in texts(ui.body) and not "개/s" in " ".join(texts(ui.body)),"hub communicates immediate sales without processing rates")
 		check(buttons(ui.body).filter(func(b):return b.has_meta("sellResource")).size()<=4,"hub shows at most four sale stacks")
 		check(buttons(ui.body).filter(func(b):return "철거" in b.text or "회전" in b.text or "일시 정지" in b.text).is_empty(),"protected hub has no invalid maintenance actions")
 		check(ui.body.get_combined_minimum_size().y<=ui.scroll.size.y+2,"hub page fits without scrolling: "+str(screen))
 		check(ui.body.get_combined_minimum_size().x<=ui.scroll.size.x+2,"hub page fits horizontally: "+str(screen))
 		ui.inspect_details=true;ui.inspector_page="improve";ui._rebuild();await settle()
-		check(buttons(ui.body).filter(func(b):return "₩" in b.text).size()>0,"cash upgrades remain accessible")
+		check(buttons(ui.body).filter(func(b):return "₩" in b.text).size()==1,"only useful price upgrade is offered at the hub")
 		check(ui.body.get_combined_minimum_size().y<=ui.scroll.size.y+2,"hub upgrades fit without scrolling: "+str(screen))
 	var complex=ui.game.create_entity("structureFactory",80,80)
 	for screen in [Vector2(320,568),Vector2(844,320)]:
@@ -92,7 +93,7 @@ func run():
 	if sell!=null:
 		ui.busy=false;sell.pressed.emit();await settle();ui.busy=true
 		check(ui.game.state.cash>cash and ui.game.stock("log")==0,"hub touch sale credits cash and removes bag stacks")
-	ui.game.fresh(0,true,42);ui.game.command({"type":"build","kind":"forest","x":62,"y":64});ui.game.state.cash=10000
+	ui.game.fresh(0,true,42);ui.game.state.cash=10000
 	ui.game.state.world.nodes.erase("80,80");ui.game.state.world.nodes.erase("80,81")
 	ui.visible_game=false;ui.busy=false;var before=JSON.stringify(ui.game.state)
 	ui._build_at("sawmill",Vector2i(80,80));await settle()
@@ -128,14 +129,14 @@ func run():
 func web_fixtures():
 	var store=load("res://scripts/core/save_store.gd").new()
 	DirAccess.make_dir_recursive_absolute("res://build/fixtures")
-	var game=Factory.new();game.fresh(0,true,42);game.command({"type":"build","kind":"forest","x":62,"y":64});game.advance(30)
+	var game=Factory.new();game.fresh(0,true,42);game.advance(30)
 	FileAccess.open("res://build/fixtures/hub-ready.json",FileAccess.WRITE).store_string(store.export_text(game))
 	game.command({"type":"collect","entityId":game.at(62,64).id})
 	for i in range(6):
 		var r=game.data.resources.keys()[i];game.state.bag[r]=i+1;game.state.totals.produced[r]=i+1
 	game.state.stage=game.data.stages[-1];game.state.unlocks.offline=true;game.state.cash=10000;game.event("first_sale");game.event("first_auto_sale")
 	FileAccess.open("res://build/fixtures/hub-stacks.json",FileAccess.WRITE).store_string(store.export_text(game))
-	game.fresh(0,true,42);game.command({"type":"build","kind":"forest","x":62,"y":64});game.advance(30)
+	game.fresh(0,true,42);game.advance(30)
 	game.command({"type":"collect","entityId":game.at(62,64).id});game.command({"type":"sellInventory","entityId":game.sales_hub().id})
 	game.command({"type":"buildRoute","from":{"x":62,"y":64},"to":{"x":65,"y":64}});game.advance(138)
 	FileAccess.open("res://build/fixtures/hub-inline.json",FileAccess.WRITE).store_string(store.export_text(game))

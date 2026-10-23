@@ -101,11 +101,9 @@ static func hub(ui,e):
 	var game=ui.game
 	if ui.inspect_details:
 		var back=ui._row();ui._button(back,"가방",func():ui.inspect_details=false;ui._rebuild());ui._spacer(back)
-		ui._bind_label(back,func():return "판매 %.1f개/s"%(8*game.speed(e)*game.effects().loading/1.5))
-		var f=game.recipe(e);var level=int(e.level);var income=int(e.get("incomeLevel",0));var manager=int(e.get("managerLevel",0))
-		hub_upgrade(ui,"자동 판매 속도\nLv.%d → %d"%[level,level+1],f.upgradeCosts[mini(level-1,f.upgradeCosts.size()-1)],{"type":"upgrade","entityId":e.id},level>=f.maxLevel)
+		ui._label(back,"도착 즉시 판매")
+		var f=game.recipe(e);var income=int(e.get("incomeLevel",0))
 		hub_upgrade(ui,"판매 단가\n+%d%% → +%d%%"%[income*12,(income+1)*12],f.incomeCosts[mini(income,9)],{"type":"upgradeIncome","entityId":e.id},income>=10)
-		hub_upgrade(ui,"매니저\n%d / 3"%manager,f.managerCosts[mini(manager,2)],{"type":"upgradeManager","entityId":e.id},manager>=3 or not game.recorded("first_auto_sale"))
 		return
 	var row=ui._row();ui._button(row,"개선",func():ui.inspect_details=true;ui._rebuild());ui._spacer(row)
 	var all_button=ui._button(row,"모두 판매",func():ui._command({"type":"sellInventory","entityId":e.id}));all_button.name="SellAllButton"
@@ -122,7 +120,7 @@ static func hub(ui,e):
 		ui.bindings.append(func():if is_instance_valid(sell):sell.disabled=game.stock(r)<=0)
 	if resources.is_empty():ui._label(ui.body,"가방이 비어 있어요")
 	if resources.size()>4:Panels.pager(ui,"hub_bag",resources.size())
-	ui._bind_label(ui.body,func():return "자동 판매 %.1f개/s"%(8*game.speed(e)*game.effects().loading/1.5))
+	ui._label(ui.body,"도착 즉시 판매")
 static func hub_upgrade(ui,title,cost,command,locked):
 	var row=ui._row();var label=ui._label(row,title);label.clip_text=true;label.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	var button=ui._button(row,"₩ "+ui.game.money(cost),func():ui._command(command))

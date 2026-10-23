@@ -13,14 +13,14 @@ func _initialize():
 	check(hubs.size()==1,"new city has one permanent central hub")
 	if hubs.is_empty():print("SALES_HUB: %d checks, %d failures"%[checks,failures]);quit(1);return
 	var hub=hubs[0]
-	check(g.state.cash==2250 and g.state.entities.size()==1,"free hub leaves the first-camp budget intact")
-	var guard=Factory.new();guard.fresh(0,true,42)
+	check(g.state.cash==0 and g.state.entities.size()==2,"new city starts with hub and a paid prebuilt logging camp")
+	check(g.at(62,64).get("kind","")=="forest" and g.at(62,64).investedCash==2250,"starter camp retains its construction investment")
+	var guard=Factory.new();load("res://tests/world_fixture.gd").empty(guard);guard.upgrade_world()
 	check(guard.command({"type":"clearArea","from":{"x":62,"y":64},"to":{"x":62,"y":64}})=="LOCKED","first-camp funds cannot be consumed by terrain clearing")
 	check(guard.command({"type":"buildRoute","from":{"x":63,"y":64},"to":{"x":65,"y":64}})=="LOCKED","first-camp funds cannot be spent on an empty conveyor route")
 	for y in range(63,66):
 		for x in range(65,68):check(g.at(x,y).get("id")==hub.id,"whole hub footprint is occupied")
 	check(g.command({"type":"build","kind":"warehouse","x":64,"y":64})=="LOCKED","warehouse removed from construction")
-	check(g.command({"type":"build","kind":"forest","x":62,"y":64})=="OK","first camp uses cash only")
 	var camp=g.at(62,64)
 	g.advance(12)
 	check(g.state.cash==0 and g.state.totals.earned==0 and camp.outputs.get("log",0)==2,"logging makes items without onsite income")
@@ -67,7 +67,7 @@ func _initialize():
 		var edge=Vector2i(entry[0],entry[1])+Factory.DIRS[entry[2]]
 		check(delivery.transfers.size()==1 and delivery.transfers[0].targetX==edge.x and delivery.transfers[0].targetY==edge.y,"item motion lands at its real receiving edge")
 		delivery.advance(1.25)
-		check(delivery.state.cash==2285 and belt.queue.is_empty(),"hub accepts a delivery at perimeter "+str(entry))
+		check(delivery.state.cash==35 and belt.queue.is_empty(),"hub accepts a delivery at perimeter "+str(entry))
 	var route=g.command({"type":"build","kind":"belt","x":67,"y":65})
 	check(route=="OCCUPIED","building cannot overlap the far corner of the hub")
 	var path=World.route_quote(g,{"x":64,"y":64},{"x":68,"y":64},false)
@@ -107,6 +107,31 @@ func _initialize():
 	check(full.upgrade_world() and full.state.entities.size()==World.MAX_ENTITIES+1,"full legacy city gains a hub without deleting a player building")
 	check(store.validate(store.snapshot(full)).is_empty(),"full migrated city remains saveable with its extra public building")
 	var saturated=Factory.new();saturated.fresh(0,true,42)
+	var instant=Factory.new();instant.fresh(0,true,42)
+	var instant_hub=instant.sales_hub();instant_hub.inputs={"log":1000,"plank":1000};instant.state.bag={"log":7}
+	var expected=1000*(instant.sale_price(instant_hub,"log")+instant.sale_price(instant_hub,"plank"))
+	instant.advance(Factory.DT)
+	check(instant_hub.inputs.is_empty() and instant.state.cash==expected,"entire mixed backlog sells in one tick without processing or storage limits")
+	check(instant.stock("log")==7 and instant.state.totals.sold.log==1000 and instant.state.totals.sold.plank==1000,"instant sales reconcile cash and units without touching bag")
+	var incoming=instant.create_entity("belt",64,64,{"direction":1});incoming.queue=["log"];incoming.flowCredit=1
+	instant.advance(Factory.DT)
+	check(incoming.queue.is_empty() and instant_hub.inputs.is_empty() and instant.state.cash==expected+35,"arrival is credited during the transfer tick")
+	for kind in ["upgrade","upgradeManager"]:
+		check(instant.command({"type":kind,"entityId":instant_hub.id})=="LOCKED","obsolete hub speed purchases cannot consume money")
+	instant.state.cash=Factory.MAX_MONEY
+	incoming.queue=["log"];incoming.flowCredit=1;instant.advance(Factory.DT)
+	check(incoming.queue==["log"] and instant_hub.inputs.is_empty(),"cash cap leaves unpaid arrivals on the conveyor")
+	var multi=Factory.new();multi.fresh(0,true,42)
+	for entry in [[64,63,1],[64,64,1],[64,65,1],[68,63,3],[68,64,3],[68,65,3],[65,62,2],[66,62,2],[67,62,2],[65,66,0],[66,66,0],[67,66,0]]:
+		var feed=multi.create_entity("belt",entry[0],entry[1],{"direction":entry[2],"level":2,"flowCredit":3})
+		feed.queue=["log","log","log"]
+	multi.advance(Factory.DT)
+	check(multi.state.cash==36*35 and multi.state.totals.sold.get("log",0)==36 and multi.transfers.size()==36,"all twelve sides sell 36 simultaneous arrivals without a shared processing limit")
+	var ledger=0
+	for receipt in multi.state.recentSales:ledger+=receipt.cash
+	check(ledger==multi.state.cash and multi.state.totals.earned==ledger,"simultaneous arrival receipts count income exactly once")
+	multi.create_entity("dispatchOffice",80,80,{"project":{"complete":true,"materials":{},"remainingS":0}});multi.clear_effects()
+	check(multi.sale_price(multi.sales_hub(),"log")==42,"dispatch office retains a useful twenty-percent price bonus instead of obsolete sales speed")
 	saturated.state.cash=Factory.MAX_MONEY-35;saturated.state.bag={"log":3}
 	check(saturated.command({"type":"sellInventory","entityId":saturated.sales_hub().id})=="OK" and saturated.stock("log")==2 and saturated.state.cash==Factory.MAX_MONEY,"money cap keeps unsold bag items")
 	saturated.state.cash=Factory.MAX_MONEY-35;saturated.sales_hub().inputs.log=3;saturated.advance(1)

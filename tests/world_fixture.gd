@@ -3,6 +3,7 @@ extends RefCounted
 static func empty(game,seed_value=42):
 	game.fresh(0,true,seed_value)
 	game.state.entities={};game.state.nextId=1
+	game.state.cash=game.data.facilities.forest.cost;game.state.records=[]
 	game.state.factory.erase("economyVersion");game.state.factory.erase("salesHubId")
 	game.state.factory.startMode="empty";game.state.factory.pioneerForestId=""
 	game.state.world.spawn={"x":62,"y":64}

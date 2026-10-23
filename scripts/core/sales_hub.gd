@@ -69,6 +69,7 @@ static func command(game,c:Dictionary) -> String:
 	var type=c.get("type","");var e=game.state.entities.get(c.get("entityId",""),{})
 	if type in ["configureWarehouse","setWarehouseSales","setReserve","setFilters","takeOrder","cancelOrder","setTradeRepeat"]:return "LOCKED"
 	if e.get("salesHub",false) and type in ["demolish","pause","rotate"]:return "PROTECTED"
+	if e.get("salesHub",false) and type in ["upgrade","upgradeManager"]:return "LOCKED"
 	if type in ["upgrade","upgradeIncome","upgradeManager"] and not started(game):return "LOCKED"
 	if type=="insertSawmill":
 		if e.get("kind","")!="belt" or game.has_facility("sawmill"):return "LOCKED"
@@ -104,3 +105,15 @@ static func command(game,c:Dictionary) -> String:
 		if not game.affordable(game.data.research.cash):return "INSUFFICIENT_CASH"
 		game.pay(game.data.research.cash);game.state.unlocks.smelting=true;return "OK"
 	return "PASS"
+
+## Sell every payable item immediately, including older buffered deliveries.
+static func sell_arrivals(game,e):
+	var earned=0
+	for r in e.inputs.keys():
+		var price=game.sale_price(e,r)
+		var n=mini(int(e.inputs[r]),int(floor(float(game.MAX_MONEY-int(game.state.cash))/price)))
+		if n<=0:continue
+		game.add(e.inputs,r,-n);game.add(game.state.totals.sold,r,n)
+		earned+=game.credit(n*price)
+	if earned>0:
+		game.sale(earned,"market",e.id);game.event("first_auto_sale");game.event("first_sale")
