@@ -3,7 +3,6 @@
 Run after Web export. No campaign replay or JavaScript replacement simulation.
 """
 import http.server
-import io
 import json
 import os
 from pathlib import Path
@@ -13,7 +12,6 @@ import threading
 import urllib.parse
 import urllib.request
 
-from PIL import Image
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,16 +72,15 @@ with sync_playwright() as p:
         with page.expect_file_chooser() as chooser:
             tap(195, 660)
         chooser.value.set_files(str(ROOT / "build/fixtures" / name))
-        for _ in range(120):
-            pixel = Image.open(io.BytesIO(page.screenshot(clip={"x": 195, "y": 330, "width": 1, "height": 1}))).convert("RGB").getpixel((0, 0))
-            if pixel == (64, 64, 64):
-                break
-            page.wait_for_timeout(100)
-        else:
-            raise AssertionError("Backup replacement dialog did not appear")
-        page.keyboard.press("Enter")
-        page.wait_for_timeout(500)
+        # A backup becomes a separate city; no existing world is replaced.
+        page.wait_for_timeout(1000)
 
+    page.screenshot(path="/tmp/rust-city-start-screen-390.png")
+    for width, height in [(320, 568), (844, 320), (390, 844)]:
+        page.set_viewport_size({"width": width, "height": height})
+        page.wait_for_timeout(400)
+        page.screenshot(path=f"/tmp/rust-city-start-screen-{width}.png")
+    tap(195, 560, 600)
     start = backup()
     assert start["cash"] == 0 and len(start["entities"]) == 2, start
     hub = next(e for e in start["entities"].values() if e.get("salesHub"))
@@ -182,6 +179,69 @@ with sync_playwright() as p:
     assert migrated["bag"].get("log", 0) == 19 and migrated["bag"].get("plank", 0) == 3, migrated
     assert sum(bool(e.get("salesHub")) for e in migrated["entities"].values()) == 1, migrated
     print("PASS actual legacy backup import upgrades before play and conserves warehouse stock in personal bag", flush=True)
+    tap(48, 792);tap(195, 716)
+    tap(195, 560, 600)
+    another = backup()
+    assert another["cash"] == 0 and not another["bag"] and len(another["entities"]) == 2, another
+    assert all(not e["outputs"] for e in another["entities"].values()), another
+    print("PASS title New creates a separate zero-cash world with no inherited wood", flush=True)
+    tap(48, 792);tap(195, 716)
+    # Reload only after the real browser database contains the newly saved slot.
+    page.wait_for_function("""async () => new Promise(resolve => {
+        const request = indexedDB.open('/userfs');
+        request.onerror = () => resolve(false);
+        request.onsuccess = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains('FILE_DATA')) { db.close(); resolve(false); return; }
+            const cursor = db.transaction('FILE_DATA', 'readonly').objectStore('FILE_DATA').openCursor();
+            cursor.onsuccess = () => {
+                const item = cursor.result;
+                if (!item) { db.close(); resolve(false); return; }
+                if (String(item.key).endsWith('/world_6.json')) {
+                    try {
+                        const saved = JSON.parse(new TextDecoder().decode(item.value.contents));
+                        db.close(); resolve(saved.state.cash === 0); return;
+                    } catch (error) { db.close(); resolve(false); return; }
+                }
+                item.continue();
+            };
+        };
+    })""", timeout=20000)
+    def saved_slots():
+        return page.evaluate(r"""() => new Promise((resolve, reject) => {
+            const request = indexedDB.open('/userfs');
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+                const db = request.result, values = [];
+                const tx = db.transaction('FILE_DATA', 'readonly');
+                tx.objectStore('FILE_DATA').openCursor().onsuccess = event => {
+                    const cursor = event.target.result;
+                    if (!cursor) return;
+                    if (/\/world_[0-9]+\.json$/.test(String(cursor.key))) {
+                        const saved = JSON.parse(new TextDecoder().decode(cursor.value.contents));
+                        values.push({id: String(cursor.key).split('/').pop(), cash: saved.state.cash,
+                            bag: saved.state.bag, savedAtMs: saved.savedAtMs});
+                    }
+                    cursor.continue();
+                };
+                tx.oncomplete = () => { db.close(); resolve(values); };
+                tx.onerror = () => { db.close(); reject(tx.error); };
+            };
+        })""")
+    before_reload = saved_slots()
+    assert len(before_reload) == 6, before_reload
+    page.reload()
+    page.wait_for_function('!document.querySelector("#status") || document.querySelector("#status").style.display === "none"', timeout=90000)
+    page.wait_for_timeout(800)
+    after_reload = saved_slots()
+    assert len(after_reload) == 6, (before_reload, after_reload)
+    tap(195, 628)
+    page.screenshot(path="/tmp/rust-city-saved-worlds-390.png")
+    # Newest world is first; choose the previous city in the second row.
+    tap(326, 270, 600)
+    resumed = backup()
+    assert resumed["bag"].get("log", 0) == 19 and resumed["bag"].get("plank", 0) == 3, resumed
+    print("PASS browser reload starts at title and Continue restores the selected older world", flush=True)
     if public_url:
         # Intercepting HTTPS through the verified session proxy can prevent
         # Chromium's AudioWorklet module loading; game/script errors stay fatal.
