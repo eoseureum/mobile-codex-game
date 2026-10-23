@@ -108,6 +108,10 @@ func _initialize():
 	check(store.validate(store.snapshot(full)).is_empty(),"full migrated city remains saveable with its extra public building")
 	var saturated=Factory.new();saturated.fresh(0,true,42)
 	var instant=Factory.new();instant.fresh(0,true,42)
+	instant.state.cash=10000
+	var untouched=JSON.stringify(instant.state)
+	check(instant.command({"type":"upgradeIncome","entityId":instant.sales_hub().id})=="LOCKED" and JSON.stringify(instant.state)==untouched,"removed hub price upgrade cannot spend money or change state")
+	instant.state.cash=0
 	var instant_hub=instant.sales_hub();instant_hub.inputs={"log":1000,"plank":1000};instant.state.bag={"log":7}
 	var expected=1000*(instant.sale_price(instant_hub,"log")+instant.sale_price(instant_hub,"plank"))
 	instant.advance(Factory.DT)
@@ -132,6 +136,28 @@ func _initialize():
 	check(ledger==multi.state.cash and multi.state.totals.earned==ledger,"simultaneous arrival receipts count income exactly once")
 	multi.create_entity("dispatchOffice",80,80,{"project":{"complete":true,"materials":{},"remainingS":0}});multi.clear_effects()
 	check(multi.sale_price(multi.sales_hub(),"log")==42,"dispatch office retains a useful twenty-percent price bonus instead of obsolete sales speed")
+	var upgraded=Factory.new();upgraded.fresh(0,true,42)
+	upgraded.sales_hub().incomeLevel=3;upgraded.sales_hub().investedCash=250;upgraded.state.cash=750
+	upgraded.state.totals.earned=123;upgraded.state.bag={"log":2}
+	check(upgraded.sale_price(upgraded.sales_hub(),"log")==35,"old saved price levels no longer multiply sale prices")
+	parsed=store.parse(store.export_text(upgraded))
+	check(not parsed.is_empty(),"old upgraded hub still validates for migration")
+	var loaded=Factory.new();loaded.state=parsed.state
+	check(loaded.upgrade_world() and loaded.state.cash==1000 and loaded.sales_hub().incomeLevel==0 and loaded.sales_hub().investedCash==0,"retired price upgrades refund the paid 55, 90 and 105 exactly once")
+	check(loaded.state.totals.earned==123 and loaded.state.recentSales.is_empty(),"upgrade refund is not counted as production or sale income")
+	untouched=JSON.stringify(loaded.state)
+	check(not loaded.upgrade_world() and JSON.stringify(loaded.state)==untouched,"reloading retired upgrades cannot duplicate the refund")
+	loaded.command({"type":"sellInventory","entityId":loaded.sales_hub().id})
+	check(loaded.state.cash==1070 and loaded.stock("log")==0,"manual sale uses base price after upgraded-save migration")
+	var feeder=loaded.create_entity("belt",64,64,{"direction":1,"flowCredit":1});feeder.queue=["log"];loaded.advance(Factory.DT)
+	check(loaded.state.cash==1105 and feeder.queue.is_empty(),"automatic arrival uses the same base price after migration")
+	var capped=Factory.new();capped.fresh(0,true,42)
+	capped.sales_hub().incomeLevel=3;capped.sales_hub().investedCash=1250;capped.state.cash=Factory.MAX_MONEY-100
+	untouched=JSON.stringify(capped.state)
+	check(not capped.upgrade_world() and JSON.stringify(capped.state)==untouched and capped.sale_price(capped.sales_hub(),"log")==35,"full refund is deferred without losing principal when cash is near its cap")
+	capped.state.cash=Factory.MAX_MONEY-250
+	check(capped.upgrade_world() and capped.state.cash==Factory.MAX_MONEY and capped.sales_hub().incomeLevel==0 and capped.sales_hub().investedCash==1000,"pending refund completes once space exists and preserves other paid hub investment")
+	check(store.validate(store.snapshot(capped)).is_empty(),"retired upgraded save remains valid at the money cap")
 	saturated.state.cash=Factory.MAX_MONEY-35;saturated.state.bag={"log":3}
 	check(saturated.command({"type":"sellInventory","entityId":saturated.sales_hub().id})=="OK" and saturated.stock("log")==2 and saturated.state.cash==Factory.MAX_MONEY,"money cap keeps unsold bag items")
 	saturated.state.cash=Factory.MAX_MONEY-35;saturated.sales_hub().inputs.log=3;saturated.advance(1)

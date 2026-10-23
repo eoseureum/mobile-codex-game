@@ -99,13 +99,7 @@ static func collection(ui,e):
 		button.text="수거 %d"%ready_count(e);button.disabled=ready_count(e)==0)
 static func hub(ui,e):
 	var game=ui.game
-	if ui.inspect_details:
-		var back=ui._row();ui._button(back,"가방",func():ui.inspect_details=false;ui._rebuild());ui._spacer(back)
-		ui._label(back,"도착 즉시 판매")
-		var f=game.recipe(e);var income=int(e.get("incomeLevel",0))
-		hub_upgrade(ui,"판매 단가\n+%d%% → +%d%%"%[income*12,(income+1)*12],f.incomeCosts[mini(income,9)],{"type":"upgradeIncome","entityId":e.id},income>=10)
-		return
-	var row=ui._row();ui._button(row,"개선",func():ui.inspect_details=true;ui._rebuild());ui._spacer(row)
+	var row=ui._row();ui._spacer(row)
 	var all_button=ui._button(row,"모두 판매",func():ui._command({"type":"sellInventory","entityId":e.id}));all_button.name="SellAllButton"
 	ui.bindings.append(func():
 		if is_instance_valid(all_button):all_button.disabled=game.state.bag.values().all(func(n):return n<=0))
@@ -121,7 +115,3 @@ static func hub(ui,e):
 	if resources.is_empty():ui._label(ui.body,"가방이 비어 있어요")
 	if resources.size()>4:Panels.pager(ui,"hub_bag",resources.size())
 	ui._label(ui.body,"도착 즉시 판매")
-static func hub_upgrade(ui,title,cost,command,locked):
-	var row=ui._row();var label=ui._label(row,title);label.clip_text=true;label.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-	var button=ui._button(row,"₩ "+ui.game.money(cost),func():ui._command(command))
-	ui.bindings.append(func():if is_instance_valid(button):button.disabled=locked or not ui.game.SalesHub.started(ui.game) or ui.game.state.cash<cost)

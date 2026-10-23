@@ -50,7 +50,10 @@ func construction_materials(kind) -> Dictionary:
 		if kind=="forest" and state.factory.pioneerForestId.is_empty():return {}
 		if kind=="sawmill" and not has_facility("sawmill"):return {}
 	return data.facilities[kind].materials
-func sale_price(e,r) -> int:return int(floor(price(r)*(1+0.12*e.get("incomeLevel",0))*effects().operating)) if world_mode() else price(r)
+func sale_price(e,r) -> int:
+	if not world_mode():return price(r)
+	var income_level=0 if central_sales() else e.get("incomeLevel",0)
+	return int(floor(price(r)*(1+0.12*income_level)*effects().operating))
 
 func add(store: Dictionary, resource, amount):
 	store[resource] = store.get(resource,0) + amount
@@ -361,7 +364,7 @@ func effects() -> Dictionary:
 	return result
 
 func income_facility(e) -> bool:
-	if central_sales():return e.get("salesHub",false)
+	if central_sales():return false
 	return (e.kind=="market" or (e.kind=="warehouse" and e.autoSell) or (e.kind=="forest" and e.id==state.factory.get("pioneerForestId",""))) if world_mode() else data.facilities[e.kind].cycle>0 and not data.facilities[e.kind].output.is_empty()
 func income_per_batch(e) -> float:
 	var total=0.0
