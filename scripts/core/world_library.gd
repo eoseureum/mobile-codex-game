@@ -84,12 +84,14 @@ func load_world(id:String) -> Dictionary:
 	if value.is_empty() and last_error.is_empty():last_error="도시 저장 파일이 없거나 저장이 완료되지 않았어요."
 	return value
 
-func save_world(id:String,game) -> bool:
+func save_world(id:String,game,saved_at_ms:int=-1) -> bool:
 	last_error=""
 	if not _valid_id(id):last_error="도시 식별자가 올바르지 않아요.";return false
 	if not _slot_exists(id):last_error="저장할 도시를 먼저 선택해 주세요.";return false
 	var store=SaveStore.new(_path(id))
-	var saved=store.save(game)
+	var snapshot=store.snapshot(game)
+	if saved_at_ms>=0:snapshot.savedAtMs=saved_at_ms
+	var saved=store.write_snapshot(snapshot)
 	last_error=store.last_error
 	return saved
 

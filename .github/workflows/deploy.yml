@@ -49,6 +49,7 @@ jobs:
           godot --headless --path . --script tests/test_world_library.gd
           godot --headless --path . --script tests/test_start_screen.gd
           godot --headless --path . --script tests/test_start_flow.gd
+          godot --headless --path . --script tests/test_background_production.gd
       - name: Check open world, routes, local inventory and clearing
         run: godot --headless --path . --script tests/test_world.gd
       - name: Check empty city opening and paid first factory line

@@ -91,7 +91,7 @@ static func industry(ui):
 				var r=value;var n=20 if r=="copper" else ui.game.data.research.materials[r]
 				picture(ui,row,"item_"+r);ui._bind_label(row,func():return "%d/%d"%[mini(n,ui.game.produced(r) if r=="copper" else ui.game.stock(r)),n])
 			ui._action("제련 · ₩ "+ui.game.money(ui.game.data.research.cash),{"type":"research","kind":"smelting"},ui.game.produced("copper")<20 or not ui.game.affordable(ui.game.data.research.cash,{} if ui.game.central_sales() else ui.game.data.research.materials))
-		else:ui._label(ui.body,"방치 생산 · 최대 2시간" if ui.game.state.unlocks.offline else "?")
+		else:ui._label(ui.body,"방치 생산 · 최대 2시간")
 		return
 	var values=ui.game.data.projects.keys().filter(func(k):return ui.game.unlocked(k));var shown=items(ui,"city",values);var g=grid(ui)
 	for value in shown:

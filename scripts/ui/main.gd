@@ -51,6 +51,8 @@ var allow_save=true
 var last_save=0
 var toast_until=0
 var paused_at=0.0
+var last_frame_at=0.0
+var background_callback
 var drag_sheet=false
 var drag_start=0.0
 var drag_initial=0.0
@@ -121,6 +123,7 @@ func _ready():
 		start_screen.import_requested.connect(_import_backup)
 		library.migrate_existing()
 		_show_start(library.last_error)
+		_watch_background()
 
 func _play_visibility(value):
 	for control in [map,header,sheet,nav,map_buttons,overview,toast_label]:control.visible=value
@@ -141,6 +144,7 @@ func _enter_game():
 	selected="e1";selected_tile=Vector2i.ZERO;tab="map";inspect_details=false;sheet_fraction=0.42
 	build_kind="";pages.clear();catalog_all=false;inventory_details=false;income_meter=IncomeMeter.new()
 	menu_loading=false;busy=false;visible_game=true;paused_at=0.0;game_started=true
+	last_frame_at=Time.get_unix_time_from_system()
 	if start_screen!=null:start_screen.set_loading(false);start_screen.hide()
 	_play_visibility(true);_focus_city();_rebuild();_layout();map.focus_district()
 
@@ -535,7 +539,7 @@ func _industry():
 		if not enabled:continue
 		var button=_button(body,game.data.facilities[id].name+" · "+_project_effect(id) if enabled else "?",func():show_tab("build");build_kind=id;sheet_fraction=0;_layout())
 		button.disabled=not enabled
-	if game.state.unlocks.offline:_label(body,"방치 생산 · 최대 2시간")
+	_label(body,"방치 생산 · 최대 2시간")
 func _records():
 	Panels.records(self)
 func _settings():
@@ -566,7 +570,14 @@ func _process(delta):
 	if game==null or header==null or not game_started:return
 	if not busy and visible_game and not auto_checks:
 		var previous=game.state.clock.tickIndex
-		game.advance(minf(1,delta))
+		var now=Time.get_unix_time_from_system()
+		var elapsed=maxf(0,now-last_frame_at) if last_frame_at>0 else maxf(0,delta)
+		last_frame_at=now
+		if elapsed>1:
+			await _catch_up(elapsed)
+			last_frame_at=Time.get_unix_time_from_system()
+			_rebuild()
+		else:game.advance(elapsed)
 		if previous!=game.state.clock.tickIndex:
 			map.record_transfers();_refresh()
 			var signature=_signature()
@@ -577,10 +588,13 @@ func _save() -> bool:
 	last_save=Time.get_ticks_msec()
 	if not allow_save or auto_checks:return true
 	if not game_started or active_world_id.is_empty():return true
-	if not library.save_world(active_world_id,game):message(library.last_error);return false
+	# Keep the complete pre-replay checkpoint if a page is discarded mid-catch-up.
+	if busy:return true
+	var accounted=paused_at if not visible_game and paused_at>0 else last_frame_at
+	var saved_at=int(accounted*1000) if accounted>0 else -1
+	if not library.save_world(active_world_id,game,saved_at):message(library.last_error);return false
 	return true
 func _catch_up(seconds):
-	if not game.state.unlocks.offline:return
 	catch_up_pending+=minf(maxf(0,seconds),7200)
 	# Repeated focus events enqueue elapsed time; only this coroutine owns busy.
 	if busy:return
@@ -596,14 +610,54 @@ func _catch_up(seconds):
 			if i%400==399:await get_tree().process_frame
 	busy=false
 	if duration>=60:message("도시가 %d분 동안 가동됐어요."%floor(duration/60))
+func _pause_production():
+	if not game_started or not visible_game:return
+	visible_game=false
+	var now=Time.get_unix_time_from_system()
+	paused_at=last_frame_at if not busy and last_frame_at>0 else now
+	_save()
+
+func _resume_production():
+	if not game_started or visible_game:return
+	visible_game=true
+	var from=paused_at;paused_at=0.0
+	last_frame_at=Time.get_unix_time_from_system()
+	if from>0:await _catch_up(maxf(0,last_frame_at-from))
+	last_frame_at=Time.get_unix_time_from_system()
+	_rebuild();_save()
+
 func _notification(what):
 	if not is_node_ready() or auto_checks or not game_started:return
-	if what==NOTIFICATION_APPLICATION_FOCUS_OUT:
-		visible_game=false;paused_at=Time.get_unix_time_from_system();_save()
-	if what==NOTIFICATION_APPLICATION_FOCUS_IN and not visible_game:
-		visible_game=true
-		if paused_at>0:await _catch_up(maxf(0,Time.get_unix_time_from_system()-paused_at));_rebuild();_save()
+	if what in [NOTIFICATION_APPLICATION_FOCUS_OUT,NOTIFICATION_APPLICATION_PAUSED]:_pause_production()
+	if what in [NOTIFICATION_APPLICATION_FOCUS_IN,NOTIFICATION_APPLICATION_RESUMED]:await _resume_production()
 	if what==NOTIFICATION_WM_CLOSE_REQUEST:_save()
+
+func _watch_background():
+	if not OS.has_feature("web"):return
+	background_callback=JavaScriptBridge.create_callback(func(args):
+		if bool(args[0]):_pause_production()
+		else:_resume_production())
+	JavaScriptBridge.get_interface("window").rustCityVisibility=background_callback
+	JavaScriptBridge.eval("""(()=>{
+		if(window.rustCityVisibilityCleanup)window.rustCityVisibilityCleanup();
+		const visibility=()=>window.rustCityVisibility(document.hidden);
+		const hide=()=>window.rustCityVisibility(true);
+		document.addEventListener('visibilitychange',visibility);
+		window.addEventListener('pagehide',hide);
+		window.addEventListener('pageshow',visibility);
+		window.rustCityVisibilityCleanup=()=>{
+			document.removeEventListener('visibilitychange',visibility);
+			window.removeEventListener('pagehide',hide);
+			window.removeEventListener('pageshow',visibility);
+		};
+		visibility();
+	})()""")
+
+func _exit_tree():
+	if OS.has_feature("web") and background_callback!=null:
+		JavaScriptBridge.eval("if(window.rustCityVisibilityCleanup){window.rustCityVisibilityCleanup();delete window.rustCityVisibilityCleanup;delete window.rustCityVisibility;}")
+		background_callback=null
+
 func _export_backup():
 	var text=store.export_text(game)
 	if OS.has_feature("web"):
