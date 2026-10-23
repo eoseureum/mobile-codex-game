@@ -11,7 +11,8 @@ static func started(game) -> bool:
 		if not e.get("salesHub",false):return true
 	return false
 static func install(game) -> bool:
-	if not game.world_mode() or active(game):return false
+	if not game.world_mode():return false
+	if active(game):return retire_price_upgrades(game)
 	var t=game.trade()
 	if t.active!=null:
 		game.add(game.state.bag,t.active.resource,t.active.reserved+t.active.loaded)
@@ -58,6 +59,17 @@ static func install(game) -> bool:
 	game.state.world.revision+=1
 	game.invalidate_index();game.clear_effects()
 	return true
+static func retire_price_upgrades(game) -> bool:
+	var building=hub(game);var level=int(building.get("incomeLevel",0))
+	if level==0:return false
+	var refund=0;var costs=game.data.facilities.market.incomeCosts
+	for i in range(level):refund+=int(costs[i])
+	refund=mini(refund,int(building.investedCash))
+	# Retain pending investment until the whole refund fits; never discard it.
+	if refund>game.MAX_MONEY-int(game.state.cash):return false
+	building.incomeLevel=0;building.investedCash-=refund
+	game.credit(refund,false,false)
+	return true
 static func free_ground(game) -> Vector2i:
 	for radius in range(1,129):
 		for y in range(maxi(0,64-radius),mini(World.SIZE,65+radius)):
@@ -69,7 +81,7 @@ static func command(game,c:Dictionary) -> String:
 	var type=c.get("type","");var e=game.state.entities.get(c.get("entityId",""),{})
 	if type in ["configureWarehouse","setWarehouseSales","setReserve","setFilters","takeOrder","cancelOrder","setTradeRepeat"]:return "LOCKED"
 	if e.get("salesHub",false) and type in ["demolish","pause","rotate"]:return "PROTECTED"
-	if e.get("salesHub",false) and type in ["upgrade","upgradeManager"]:return "LOCKED"
+	if e.get("salesHub",false) and type in ["upgrade","upgradeManager","upgradeIncome"]:return "LOCKED"
 	if type in ["upgrade","upgradeIncome","upgradeManager"] and not started(game):return "LOCKED"
 	if type=="insertSawmill":
 		if e.get("kind","")!="belt" or game.has_facility("sawmill"):return "LOCKED"
