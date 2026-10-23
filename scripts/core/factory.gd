@@ -5,6 +5,8 @@ const World=preload("res://scripts/core/world_map.gd")
 const WorldRules=preload("res://scripts/core/world_rules.gd")
 const SalesHub=preload("res://scripts/core/sales_hub.gd")
 const DT = 0.25
+const GENERATOR_BURN_S = 10.0
+const GENERATOR_OUTPUT = 12.0
 const MAX_MONEY = 9007199254740991
 const DIRS = [Vector2i(0,-1), Vector2i(1,0), Vector2i(0,1), Vector2i(-1,0)]
 var modern_data: Dictionary
@@ -90,6 +92,20 @@ func has_facility(kind) -> bool:
 	return false
 func transport(e) -> bool: return e.kind in ["belt","splitter"]
 func speed(e) -> float: return 1.0+0.12*(e.level-1)+0.08*e.get("managerLevel",0)
+func transport_rate(e,upgraded=false) -> float:return 1.5 if e.level==1 and not upgraded else 3.0
+func generator_output(e,bonus=0.0) -> float:return GENERATOR_OUTPUT*(speed(e)+bonus)
+func work_rate(e,bonus=0.0,preview=false) -> float:
+	var rate=speed(e)+bonus
+	var power=data.facilities[e.kind].power
+	if power<=0:return rate
+	var ratio=state.power.ratio
+	if bonus!=0 or preview:
+		# Preview the extra grid load too, rather than promising full-power speed.
+		var demand=0.0
+		for other in state.entities.values():
+			if not other.paused or other.id==e.id:demand+=data.facilities[other.kind].power*(speed(other)+(bonus if other.id==e.id else 0.0))
+		ratio=minf(1,state.power.generation/demand) if demand>0 else 1.0
+	return rate*ratio
 func capacity(e) -> int: return int(20*e.level)
 func key(x,y) -> String: return "%d,%d" % [x,y]
 func price(r) -> int: return int(data.resources[r].price)
@@ -377,7 +393,7 @@ func production():
 	for e in state.entities.values():
 		var f=recipe(e)
 		if f.cycle==0 or e.kind=="generator" or e.paused: continue
-		var budget=DT*speed(e)*(state.power.ratio if f.power>0 else 1)
+		var budget=DT*work_rate(e)
 		if budget<=0: continue
 		for guard in range(20):
 			if e.job==null:
@@ -415,9 +431,9 @@ func power_step():
 		if e.kind!="generator": continue
 		if e.burnRemainingS<=0.00000001 and e.inputs.get("coal",0)>0:
 			add(e.inputs,"coal",-1)
-			e.burnRemainingS=10
+			e.burnRemainingS=GENERATOR_BURN_S
 		if e.burnRemainingS>0:
-			generation+=12*speed(e)
+			generation+=generator_output(e)
 			e.burnRemainingS=maxf(0,e.burnRemainingS-DT)
 			event("first_power")
 	state.power={"generation":generation,"demand":demand,"ratio":minf(1,generation/demand) if demand>0 else 1.0}
@@ -623,7 +639,7 @@ func logistics():
 		snapshots[e.id]={"queue":e.queue.duplicate(),"outputs":e.outputs.duplicate(),"inputs":e.inputs.duplicate()}
 	if income>0: sale(income,"market")
 	for e in sources:
-		var rate=1.5*speed(e) if e.kind=="warehouse" else (1.5 if e.level==1 else 3.0) if transport(e) else 8.0
+		var rate=1.5*speed(e) if e.kind=="warehouse" else transport_rate(e) if transport(e) else 8.0
 		e.flowCredit=minf(maxf(1,rate),e.flowCredit+DT*rate)
 		budgets[e.id]=int(floor(e.flowCredit+0.000000001))
 	while true:
