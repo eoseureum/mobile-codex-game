@@ -21,7 +21,10 @@ func _draw():
 		for pos in game.state.world.nodes:
 			var p=World.parse_key(pos);var r=game.state.world.nodes[pos]
 			im.set_pixel(p.x,p.y,Color(colors[r]) if known[r] else Color("8f9891"))
-		for e in game.state.entities.values():im.set_pixel(int(e.x),int(e.y),Color("f4dfad"))
+		for e in game.state.entities.values():
+			var footprint=game.entity_rect(e)
+			for y in range(footprint.position.y,footprint.end.y):
+				for x in range(footprint.position.x,footprint.end.x):im.set_pixel(x,y,Color("f4dfad"))
 		raster=ImageTexture.create_from_image(im)
 	var box=StyleBoxFlat.new();box.bg_color=Color("fff2cf");box.border_color=Color("8c9470");box.set_border_width_all(2);box.set_corner_radius_all(6);box.shadow_size=3;box.shadow_offset=Vector2(0,4);box.shadow_color=Color("344a3b32")
 	draw_style_box(box,Rect2(Vector2.ZERO,size))

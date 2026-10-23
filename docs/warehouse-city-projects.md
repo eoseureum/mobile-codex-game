@@ -1,3 +1,5 @@
+> Historical behavior before the central-market economy. Current cities use cash-only building and city-project construction; see [the current design](superpowers/specs/2026-10-23-central-market-design.md).
+
 # City project materials
 
 City projects (cabin, city workshop, dispatch office) automatically allocate their missing construction materials from pooled warehouse inventory and the city bag. They retain their original cash cost, material quantities and construction duration. Regular factory recipes and rocket deliveries still require physical transport.

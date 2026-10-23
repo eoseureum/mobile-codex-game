@@ -32,9 +32,9 @@ static func tile(ui,parent,title,subtitle,art,action,disabled=false):
 		var l=Label.new();l.text=text;l.clip_text=true;l.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;l.mouse_filter=Control.MOUSE_FILTER_IGNORE;l.add_theme_font_size_override("font_size",int(12*ui.scale_ui));column.add_child(l)
 	return b
 static func build(ui):
-	if ui.game.recorded("first_sawmill"):
+	if Opening.feature(ui.game,"logistics") if ui.game.central_sales() else ui.game.recorded("first_sawmill"):
 		tabs(ui,[["facilities","시설"],["logistics","물류"]],ui.build_page,func(id):ui.build_page=id;ui._rebuild())
-	if ui.build_page=="logistics" and ui.game.recorded("first_sawmill"):
+	if ui.build_page=="logistics" and (Opening.feature(ui.game,"logistics") if ui.game.central_sales() else ui.game.recorded("first_sawmill")):
 		var row=ui._row();ui._button(row,"컨베이어 연결",func():ui.world_tools.begin("route"));ui._button(row,"부지 정리",func():ui.world_tools.begin("clear"))
 	var values=Opening.catalog(ui.game,ui.catalog_all and not ui.game.state.entities.is_empty())
 	if ui.build_page=="logistics":values=values.filter(func(k):return k in ["belt","splitter","warehouse","market"])
@@ -42,10 +42,17 @@ static func build(ui):
 	var shown=items(ui,"build",values,limit);var g=grid(ui)
 	for kind in shown:
 		var k=kind;var f=ui.game.data.facilities[k];var known=ui.game.unlocked(k)
-		tile(ui,g,f.name if known else "?",ui._cost(k) if known else "",k if known else "icon_unknown",func():ui.build_kind=k;ui.map.building=k;ui.sheet_fraction=0;ui._layout(),not known)
+		var cell=g
+		if ui.game.central_sales() and known:
+			cell=HBoxContainer.new();cell.size_flags_horizontal=Control.SIZE_EXPAND_FILL;g.add_child(cell)
+		tile(ui,cell,f.name if known else "?",ui._cost(k) if known else "",k if known else "icon_unknown",func():ui.build_kind=k;ui.map.building=k;ui.sheet_fraction=0;ui._layout(),not known)
+		if ui.game.central_sales() and known:
+			var info=ui._button(cell,"생산식",func():ui._recipe_info(k));info.tooltip_text=f.name+" · 생산식";info.set_meta("recipeInfo",k);info.add_theme_font_size_override("font_size",int(12*ui.scale_ui))
 	if ui.game.state.entities.is_empty():return
 	pager(ui,"build",values.size(),limit,"주요" if ui.catalog_all else "전체",func():ui.catalog_all=not ui.catalog_all;ui.pages.build=0;ui._rebuild())
 static func inventory(ui):
+	if ui.game.central_sales():
+		bag(ui);return
 	tabs(ui,[[false,"재고"],[true,"판매 설정"]],ui.inventory_details,func(value):ui.inventory_details=value;ui._rebuild())
 	var resources=ui.game.data.resources.keys().filter(func(r):return ui.game.known_resource(r))
 	var limit=2 if ui.inventory_details else 4
@@ -80,10 +87,10 @@ static func industry(ui):
 	if ui.industry_page=="research":
 		if not ui.game.state.unlocks.get("smelting",false) and ui.game.stage_index()>=1:
 			var row=ui._row()
-			for value in ["copper","stone","coal"]:
+			for value in (["copper"] if ui.game.central_sales() else ["copper","stone","coal"]):
 				var r=value;var n=20 if r=="copper" else ui.game.data.research.materials[r]
 				picture(ui,row,"item_"+r);ui._bind_label(row,func():return "%d/%d"%[mini(n,ui.game.produced(r) if r=="copper" else ui.game.stock(r)),n])
-			ui._action("제련 · ₩ "+ui.game.money(ui.game.data.research.cash),{"type":"research","kind":"smelting"},ui.game.produced("copper")<20 or not ui.game.affordable(ui.game.data.research.cash,ui.game.data.research.materials))
+			ui._action("제련 · ₩ "+ui.game.money(ui.game.data.research.cash),{"type":"research","kind":"smelting"},ui.game.produced("copper")<20 or not ui.game.affordable(ui.game.data.research.cash,{} if ui.game.central_sales() else ui.game.data.research.materials))
 		else:ui._label(ui.body,"방치 생산 · 최대 2시간" if ui.game.state.unlocks.offline else "?")
 		return
 	var values=ui.game.data.projects.keys().filter(func(k):return ui.game.unlocked(k));var shown=items(ui,"city",values);var g=grid(ui)
@@ -108,3 +115,17 @@ static func trade(ui):
 		var b=tile(ui,g,ui._resource_name(q.resource)+" × %d"%q.quantity,"₩ "+ui.game.money(q.reward),"item_"+q.resource,func():ui.trade_page="active";ui._command({"type":"takeOrder","offerId":q.id}),t.active!=null or t.cooldownS>0)
 		b.set_meta("offer",true)
 	pager(ui,"offers",values.size())
+
+static func bag(ui):
+	var resources=ui.game.data.resources.keys().filter(func(r):return ui.game.stock(r)>0)
+	var shown=items(ui,"bag",resources);var g=grid(ui)
+	for resource_id in shown:
+		var r=resource_id;var cell=HBoxContainer.new();cell.custom_minimum_size.y=40*ui.scale_ui;g.add_child(cell)
+		picture(ui,cell,"item_"+r);ui._spacer(cell);ui._bind_label(cell,func():return str(int(ui.game.stock(r))))
+	if resources.is_empty():ui._label(ui.body,"가방이 비어 있어요")
+	if resources.size()>4:pager(ui,"bag",resources.size())
+	var row=ui._row();ui._spacer(row)
+	var button=ui._button(row,"판매소로",func():
+		var hub=ui.game.sales_hub()
+		ui.show_tab("map");ui._tile(Vector2i(int(hub.x),int(hub.y)));ui.map.focus_point(Vector2i(int(hub.x)+1,int(hub.y)+1)))
+	button.name="FocusHubButton"

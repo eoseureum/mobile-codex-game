@@ -80,8 +80,8 @@ func tile_panel():
 		if game.known_resource(r) and game.unlocked(kind):
 			_button(game.data.facilities[kind].name+" · "+ui._cost(kind),func():ui._build_at(kind,tile))
 		else:ui._label(ui.body,"?")
-		if not game.state.entities.is_empty():_button("부지 정리",func():clear_one(tile),not game.known_resource(r))
+		if (game.SalesHub.started(game) if game.central_sales() else not game.state.entities.is_empty()):_button("부지 정리",func():clear_one(tile),not game.known_resource(r))
 	else:
 		ui._label(ui.body,"빈 부지",true)
 		_button("시설 건설",func():ui.show_tab("build"))
-		_button("컨베이어 연결",func():begin("route");origin=point(tile);ui.map.work_origin=tile;ui._layout_title())
+		if not game.central_sales() or game.SalesHub.started(game):_button("컨베이어 연결",func():begin("route");origin=point(tile);ui.map.work_origin=tile;ui._layout_title())

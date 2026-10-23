@@ -1,4 +1,5 @@
 extends SceneTree
+const Fixture=preload("res://tests/world_fixture.gd")
 const World=preload("res://scripts/core/world_map.gd")
 const Factory=preload("res://scripts/core/factory.gd")
 const Store=preload("res://scripts/core/save_store.gd")
@@ -18,7 +19,7 @@ func _initialize():
 		for r in World.NODE_TYPES:check(counts.get(r,0)>=60,"all industries have distributed sources: "+r)
 		check(w.nodes==World.generate(seed).nodes,"scatter remains deterministic")
 	if failures:quit(1);return
-	var g=Factory.new();g.fresh(0,true,42);g.command({"type":"build","kind":"forest","x":62,"y":64});g.advance(160)
+	var g=Factory.new();Fixture.empty(g);g.command({"type":"build","kind":"forest","x":62,"y":64});g.advance(160)
 	g.command({"type":"buildLinked","kind":"sawmill","sourceId":"e1","x":64,"y":64})
 	g.command({"type":"clearArea","from":{"x":59,"y":69},"to":{"x":59,"y":69}})
 	g.state.world.erase("scatterVersion")

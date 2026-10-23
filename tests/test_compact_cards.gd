@@ -1,11 +1,12 @@
 extends SceneTree
+const Fixture=preload("res://tests/world_fixture.gd")
 var failures=0
 var checks=0
 func check(v,s):checks+=1;if not v:failures+=1;printerr("FAIL: "+s)
 func _initialize():call_deferred("run")
 func run():
 	var ui=load("res://scenes/Main.tscn").instantiate();ui.allow_save=false;ui.busy=true;root.add_child(ui);await process_frame
-	ui.game.fresh(0,true,42);ui.game.command({"type":"build","kind":"forest","x":62,"y":64})
+	Fixture.empty(ui.game);ui.game.command({"type":"build","kind":"forest","x":62,"y":64})
 	ui.game.event("first_sawmill");ui.game.event("first_auto_sale")
 	ui.game.state.stage="space";ui.game.state.unlocks.offline=true;ui.catalog_all=true
 	ui.size=Vector2(390,844);ui.show_tab("build");await process_frame;await process_frame;await process_frame

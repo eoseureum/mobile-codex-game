@@ -1,4 +1,5 @@
 extends SceneTree
+const Fixture=preload("res://tests/world_fixture.gd")
 var checks=0
 var failures=0
 func check(v,m):
@@ -18,7 +19,7 @@ func tap(ui,text):
 func _initialize():call_deferred("run")
 func run():
 	var ui=load("res://scenes/Main.tscn").instantiate();ui.allow_save=false;ui.busy=true;root.add_child(ui);await process_frame
-	ui.set_process(false);ui.busy=false;ui.game.fresh(0,true,42);ui.size=Vector2(390,844)
+	ui.set_process(false);ui.busy=false;Fixture.empty(ui.game);ui.size=Vector2(390,844)
 	ui._build_at("forest",Vector2i(62,64));await process_frame;await process_frame
 	check(not ui.dialog.visible and ui.game.state.entities.size()==1,"construction executes without modal")
 	var camp=ui.game.at(62,64)

@@ -179,6 +179,7 @@ static func icon(im:Image,kind:String):
 			panel(im,7,7,18,18,"c9cfac");rect(im,13,11,6,2,INK);rect(im,17,13,2,3,INK);rect(im,15,16,3,2,INK);rect(im,15,20,2,2,INK)
 
 static func image(kind:String,frame=0) -> Image:
+	if kind=="sales_hub":return hub_image(frame)
 	var im=Image.create(32,32,false,Image.FORMAT_RGBA8)
 	im.fill(Color.TRANSPARENT)
 	if kind.begins_with("icon_"):icon(im,kind.trim_prefix("icon_"));return im
@@ -299,4 +300,43 @@ static func image(kind:String,frame=0) -> Image:
 				rect(im,6,10+n,6,1,"b4c7b4");rect(im,24,27-n,2,2,"e8d587")
 		_:
 			factory(im,kind,frame)
+	return im
+
+static func hub_image(frame=0) -> Image:
+	var im=Image.create(96,96,false,Image.FORMAT_RGBA8);im.fill(Color.TRANSPARENT)
+	var phase=maxi(0,frame-1)
+	# Open receiving apron: green steel lanes expose the grass between docks.
+	for dock in [Rect2i(0,36,24,24),Rect2i(72,36,24,24),Rect2i(36,0,24,24),Rect2i(36,72,24,24)]:
+		rect(im,dock.position.x,dock.position.y,dock.size.x,dock.size.y,"385b54")
+		rect(im,dock.position.x+2,dock.position.y+2,dock.size.x-4,dock.size.y-4,"7e9b83")
+	# Eight individual perimeter receivers stay readable across the 3×3 footprint.
+	for at in [Vector2i(6,6),Vector2i(38,6),Vector2i(70,6),Vector2i(6,38),Vector2i(70,38),Vector2i(6,70),Vector2i(38,70),Vector2i(70,70)]:
+		panel(im,at.x,at.y,20,20,"668779")
+		rect(im,at.x+2,at.y+3,16,3,"b9cfb0")
+		for n in range(3):rect(im,at.x+3,at.y+8+n*4,14,2,"3f6259")
+		rect(im,at.x+3+(phase%4)*3,at.y+8,3,10,"e2c678")
+	# A raised pavilion with a tall roof and compact service tower.
+	rect(im,24,65,48,5,"344d4544")
+	panel(im,24,30,48,36,"78928a")
+	rect(im,26,53,44,11,"587369")
+	for x in [28,57]:
+		panel(im,x,41,11,18,"344f49");rect(im,x+2,43,7,5,"b7d5bd")
+		for y in range(51,58,3):rect(im,x+2,y,7,1,"6b8d7d")
+	panel(im,41,43,14,22,"344f49");rect(im,43,45,10,17,"9bb897")
+	rect(im,46,46,4,14,"d8c781");rect(im,42,59,12,3,"6b8d7d")
+	for row in range(20):
+		var inset=maxi(0,18-row)
+		rect(im,19+inset,15+row,58-inset*2,1,INK)
+		if row>0:rect(im,20+inset,15+row,56-inset*2,1,"a85f50" if row%5<3 else "c27c60")
+	rect(im,19,34,58,3,INK);rect(im,21,35,54,2,"dbac79")
+	panel(im,35,29,26,10,"f2d48c");rect(im,38,32,20,3,"785b42")
+	for x in range(39,58,5):rect(im,x,30,2,7,"f7e4ab")
+	panel(im,61,18,8,14,"54776c");rect(im,62,19,6,2,"a7c9b0")
+	rect(im,64,8,2,11,INK);rect(im,66,8,12,7,"d5ad5a");rect(im,66,9,9,4,"f2d48c")
+	# Warm activity lights and a tiny trolley on the southern receiving lane.
+	for x in [28,65]:rect(im,x,39,3,2,"f6d981" if phase%4<2 else "c7a162")
+	if frame>0:
+		var x=38+phase*2
+		panel(im,x,76,8,7,"b78e55");rect(im,x+2,77,4,3,"f1d394")
+		for wheel in [x+1,x+6]:rect(im,wheel,83,2,2,INK)
 	return im

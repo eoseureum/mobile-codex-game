@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       campaign_checks:
-        description: Run full legacy and paid world campaigns
+        description: Run historical full campaigns (pre-central-market)
         type: boolean
         default: false
 
@@ -40,6 +40,10 @@ jobs:
         run: godot --headless --path . --script tests/test_runner.gd
       - name: Check warehouse-funded city projects and save compatibility
         run: godot --headless --path . --script tests/test_project_stock.gd
+      - name: Check central sales, collection, footprint, migration and touch UI
+        run: |
+          godot --headless --path . --script tests/test_sales_hub.gd
+          godot --headless --path . --script tests/test_sales_hub_ui.gd
       - name: Check open world, routes, local inventory and clearing
         run: godot --headless --path . --script tests/test_world.gd
       - name: Check empty city opening and paid first factory line
@@ -67,7 +71,7 @@ jobs:
           godot --headless --path . --script tests/test_polish_ui.gd
           godot --headless --path . --script tests/test_conveyor_shapes.gd
           godot --headless --path . --script tests/test_font_glyphs.gd
-      - name: Generate and replay paid campaign without publishing detailed traces
+      - name: Generate and replay historical paid campaign without publishing detailed traces
         if: github.event_name == 'workflow_dispatch' && inputs.campaign_checks
         run: |
           godot --headless --path . --script tools/campaign_balance.gd

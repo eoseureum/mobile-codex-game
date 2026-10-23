@@ -125,7 +125,7 @@ static func quote_path(game,path:Array,clear:bool) -> Dictionary:
 	if cells.is_empty():
 		var source=game.at(path[0].x,path[0].y)
 		if source.is_empty() or not game.transport(source) or int(source.direction)==direction(path[0],path[1]):return failure("EMPTY")
-	if cells.size()+game.state.entities.size()>MAX_ENTITIES:return failure("TOO_LARGE")
+	if cells.size()+game.state.entities.size()>game.entity_limit():return failure("TOO_LARGE")
 	var result=clearance(game,terrain)
 	if not result.ok:return result
 	result.cells=cells;result.path=path;result.cash+=cells.size()*int(game.data.facilities.belt.cost)
@@ -144,7 +144,10 @@ static func route_quote(game,from,to,clear=false) -> Dictionary:
 	var grid=AStarGrid2D.new();grid.region=Rect2i(0,0,SIZE,SIZE);grid.diagonal_mode=AStarGrid2D.DIAGONAL_MODE_NEVER
 	grid.default_compute_heuristic=AStarGrid2D.HEURISTIC_MANHATTAN;grid.default_estimate_heuristic=AStarGrid2D.HEURISTIC_MANHATTAN;grid.update()
 	for pos in game.state.world.nodes:grid.set_point_solid(parse_key(pos),true)
-	for e in game.state.entities.values():grid.set_point_solid(Vector2i(int(e.x),int(e.y)),true)
+	for e in game.state.entities.values():
+		var area=game.entity_rect(e)
+		for y in range(area.position.y,area.end.y):
+			for x in range(area.position.x,area.end.x):grid.set_point_solid(Vector2i(x,y),true)
 	grid.set_point_solid(a,false);grid.set_point_solid(b,false)
 	var end_entity=game.at(b.x,b.y)
 	if not end_entity.is_empty() and end_entity.kind not in ["market","launchpad"] and not game.is_project(end_entity.kind) and not (end_entity.kind=="warehouse" and end_entity.get("dispatchResource")==null):

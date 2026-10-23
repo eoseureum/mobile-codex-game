@@ -11,6 +11,7 @@ const ProductionCard=preload("res://scripts/ui/production_card.gd")
 const Panels=preload("res://scripts/ui/paged_panels.gd")
 const FacilityTabs=preload("res://scripts/ui/facility_tabs.gd")
 const IncomeMeter=preload("res://scripts/ui/income_meter.gd")
+const RecipePreview=preload("res://scripts/ui/recipe_preview.gd")
 var game=Factory.new()
 var store=SaveStore.new()
 var map
@@ -61,6 +62,7 @@ var trade_page="offers"
 var inspector_page="improve"
 var panel_revision=0
 var panel_available=1.0
+var recipe_button: Button
 
 func _ready():
 	auto_checks="--ui-check" in OS.get_cmdline_user_args()
@@ -76,6 +78,7 @@ func _ready():
 	income_label=Label.new();income_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;wallet.add_child(income_label)
 	stage_label=Label.new();stage_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;wallet.add_child(stage_label)
 	var warehouse=_floating_button(header,"창고","inventory",func():show_tab("inventory"));warehouse.name="WarehouseButton"
+	recipe_button=_button(header,"생산식",func():if not build_kind.is_empty():_recipe_info(build_kind));recipe_button.name="RecipeInfoButton"
 	sheet=Panel.new();add_child(sheet)
 	handle=_button(sheet,"",func():
 		if not drag_moved:
@@ -92,13 +95,17 @@ func _ready():
 	_icon_button(map_buttons,"minus",func():map.zoom_by(-0.15))
 	_icon_button(map_buttons,"home",func():map.focus_district())
 	toast_label=Label.new();toast_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;toast_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;add_child(toast_label)
-	dialog=ConfirmationDialog.new();dialog.title="Rust City";add_child(dialog);dialog.confirmed.connect(func():if pending_action.is_valid():pending_action.call())
+	dialog=ConfirmationDialog.new();dialog.title="Rust City";add_child(dialog);dialog.confirmed.connect(func():
+		var action=pending_action;pending_action=Callable()
+		if action.is_valid():action.call())
+	dialog.canceled.connect(func():pending_action=Callable())
 	resized.connect(_resize_layout)
 	_layout();_focus_city();_rebuild()
 	if not auto_checks:
 		var saved=store.load_city()
 		if not saved.is_empty():
 			game.state=saved.state
+			game.upgrade_world()
 			await _catch_up(maxf(0,Time.get_unix_time_from_system()-saved.savedAtMs/1000.0))
 		elif not store.last_error.is_empty():allow_save=false;message(store.last_error)
 		_focus_city();_rebuild();_layout();_save()
@@ -107,6 +114,9 @@ func _ready():
 		await _ui_test()
 
 func _focus_city():
+	if game.central_sales() and not game.SalesHub.started(game):
+		selected="";selected_tile=Vector2i(62,64);map.selection=selected_tile
+		game.invalidate_index();game.clear_effects();world_tools.reset();map.focus_district();return
 	var e=game.state.entities.get(selected,{})
 	if e.is_empty():
 		if game.state.entities.is_empty():
@@ -122,6 +132,7 @@ func _resize_layout():
 	_layout();map.focus_district()
 	await get_tree().process_frame
 	for b in nav.get_children():_size_floating_button(b,scale_ui)
+	if dialog.visible and dialog.has_meta("recipeKind"):RecipePreview.show(self,dialog.get_meta("recipeKind"),pending_action)
 
 func _box(color:Color,radius=10) -> StyleBoxFlat:
 	var box=StyleBoxFlat.new();box.bg_color=color;box.border_color=Color("8c9470")
@@ -179,6 +190,7 @@ func _command(c):
 func message(text):
 	toast_label.text=text;toast_until=Time.get_ticks_msec()+3500;_layout()
 func confirm(text,action:Callable):
+	RecipePreview.clear(self);dialog.get_cancel_button().show()
 	pending_action=action;dialog.dialog_text=text;dialog.get_ok_button().text="확인";dialog.get_cancel_button().text="취소";dialog.popup_centered(Vector2i(int(330*scale_ui),int(170*scale_ui)))
 
 func _layout():
@@ -212,6 +224,8 @@ func _layout():
 	var wide=size.x>size.y*1.3
 	var left_width=size.x*0.5 if wide else size.x
 	warehouse.position.x=left_width-80*u
+	recipe_button.visible=game.central_sales() and tab=="build" and not build_kind.is_empty()
+	recipe_button.position=Vector2(left_width-96*u,94*u);recipe_button.size=Vector2(80,48)*u
 	var dock_width=minf(384*u,left_width-32*u)
 	nav.add_theme_constant_override("separation",int(8*u))
 	for child in nav.get_children():child.custom_minimum_size=Vector2(48,64)*u
@@ -246,10 +260,10 @@ func _sheet_input(e):
 			if sheet_fraction<0.2:sheet_fraction=0
 			_layout()
 func _layout_title():
-	var labels={"inventory":"도시 창고","trade":"주문 출하","industry":"산업과 확장","build":"시설 건설","records":"도시 기록","settings":"도시 관리"}
+	var labels={"inventory":"가방" if game.central_sales() else "도시 창고","trade":"주문 출하","industry":"산업과 확장","build":"시설 건설","records":"도시 기록","settings":"도시 관리"}
 	var e=game.state.entities.get(selected,{})
-	handle.text=(game.data.facilities[e.kind].name if not e.is_empty() else "빈 건설 부지") if tab=="map" else labels.get(tab,"")
-	if tab=="map" and game.world_mode() and game.state.entities.is_empty():handle.text="벌목장 건설 · ₩ "+Factory.money(game.data.facilities.forest.cost)
+	handle.text=(("중앙 판매소" if e.get("salesHub",false) else game.data.facilities[e.kind].name) if not e.is_empty() else "빈 건설 부지") if tab=="map" else labels.get(tab,"")
+	if tab=="map" and game.world_mode() and (game.state.entities.is_empty() or (game.central_sales() and not game.SalesHub.started(game))):handle.text="벌목장 건설 · ₩ "+Factory.money(game.data.facilities.forest.cost)
 	if tab=="build" and not build_kind.is_empty():handle.text=game.data.facilities[build_kind].name+" 배치"
 	if world_tools!=null and not world_tools.mode.is_empty():handle.text=world_tools.title()
 	handle.text+="   ↑" if sheet_fraction==0 else "   ↓"
@@ -265,14 +279,32 @@ func _demolish(e):
 	if result!="OK":message(_error(result));return
 	selected="";inspect_details=false;_save();_rebuild();_layout()
 	message("철거 +₩ "+game.money(refund))
-func _build_linked(quote):
+func _recipe_info(kind):
+	RecipePreview.show(self,kind)
+func _build_linked(quote,accepted=false):
 	if busy:return
+	if not accepted and RecipePreview.first(game,quote.kind):
+		RecipePreview.show(self,quote.kind,func():_build_linked(quote,true));return
+	if quote.get("action","")=="insertSawmill":
+		var conversion=game.command({"type":"insertSawmill","entityId":quote.entityId})
+		if conversion!="OK":message(_error(conversion));return
+		selected=quote.entityId;selected_tile=Vector2i(quote.x,quote.y);map.selection=selected_tile
+		inspect_details=false;tab="map";sheet_fraction=0.42;_save();_rebuild();_layout();return
+	if quote.get("action","")=="connectMarket":
+		var source=game.state.entities.get(quote.sourceId,{})
+		if source.is_empty():return
+		var route_result=game.command({"type":"buildRoute","from":{"x":source.x,"y":source.y},"to":{"x":quote.x,"y":quote.y},"clear":false})
+		if route_result!="OK":message(_error(route_result));return
+		selected=source.id;selected_tile=Vector2i(int(source.x),int(source.y));map.selection=selected_tile
+		inspect_details=false;tab="map";sheet_fraction=0.42;_save();_rebuild();_layout();return
 	var result=game.command({"type":"buildLinked","kind":quote.kind,"sourceId":quote.sourceId,"x":quote.x,"y":quote.y})
 	if result!="OK":message(_error(result));return
 	selected=game.at(quote.x,quote.y).id;selected_tile=Vector2i(quote.x,quote.y);map.selection=selected_tile
 	inspect_details=false;tab="map";sheet_fraction=0.42;_save();_rebuild();_layout();map.focus_point(selected_tile)
-func _build_at(kind,tile):
+func _build_at(kind,tile,accepted=false):
 	if busy:return
+	if not accepted and RecipePreview.first(game,kind):
+		RecipePreview.show(self,kind,func():_build_at(kind,tile,true));return
 	var result=game.command({"type":"build","kind":kind,"x":tile.x,"y":tile.y})
 	if result=="OK":
 		selected=game.at(tile.x,tile.y).id;tab="map";inspect_details=false;build_kind="";sheet_fraction=0.42;_save();_rebuild();_layout()
@@ -296,6 +328,7 @@ func _signature() -> String:
 	value+=str(game.produced("copper")>=20)
 	if tab=="trade":value+=str(game.trade().active!=null)+str(game.trade().completed)+str(game.trade().cooldownS<=0)
 	var selected_entity=game.state.entities.get(selected,{})
+	if game.central_sales() and (tab=="inventory" or selected_entity.get("salesHub",false)):value+=str(game.state.bag.keys())
 	if selected_entity.get("kind","")=="warehouse":value+=str(Opening.handled_resources(game,selected_entity))
 	return value
 func _rebuild():
@@ -421,6 +454,9 @@ func _district(id):
 	if n<6:_action("확장 · ₩ "+Factory.money(offer.cash),{"type":"expand","districtId":id})
 	_button(body,"지도에서 보기",func():map.focus_district(id);show_tab("map"))
 func _project_effect(kind):
+	if game.central_sales():
+		if kind=="cityWorkshop":return "판매 단가 +10%"
+		if kind=="dispatchOffice":return "자동 판매 속도 +20%"
 	return "판매 단가 +25%" if game.world_mode() and kind=="cabin" else game.data.projects[kind].effect
 func _industry():
 	if game.world_mode():Panels.industry(self);return
@@ -461,6 +497,8 @@ func _refresh():
 	if game.stage_index()>=3:stage_label.text="RUST CITY · 전력 %.0f / %.0f"%[game.state.power.generation,game.state.power.demand]
 	for binding in bindings:binding.call()
 	var warehouse=header.get_node("WarehouseButton");warehouse.visible=Opening.feature(game,"inventory")
+	warehouse.get_node("Caption").text="가방" if game.central_sales() else "창고"
+	warehouse.tooltip_text="가방" if game.central_sales() else "창고"
 	overview.visible=game.world_mode() and Opening.feature(game,"overview")
 	for button in nav.get_children():
 		var available=Opening.feature(game,button.get_meta("tab"));button.disabled=not available
@@ -519,7 +557,7 @@ func _import_backup():
 func _prepare_import(text):
 	var snapshot=store.parse(text)
 	if snapshot.is_empty():message(store.last_error);return
-	confirm("백업 도시로 교체할까요? 현재 Godot 도시를 먼저 내보내 보관할 수 있어요.",func():game.state=snapshot.state;selected="e1";allow_save=true;await _catch_up(maxf(0,Time.get_unix_time_from_system()-snapshot.savedAtMs/1000.0));_save();show_tab("map");_focus_city())
+	confirm("백업 도시로 교체할까요? 현재 Godot 도시를 먼저 내보내 보관할 수 있어요.",func():game.state=snapshot.state;game.upgrade_world();selected="e1";allow_save=true;await _catch_up(maxf(0,Time.get_unix_time_from_system()-snapshot.savedAtMs/1000.0));_save();show_tab("map");_focus_city())
 func _ui_test():
 	var before={}
 	for child in body.get_children():

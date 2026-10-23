@@ -3,6 +3,7 @@ extends RefCounted
 static func phase(game,e) -> float:
 	if e.paused:return -1.0
 	var time=game.state.clock.elapsedS+game.state.clock.carryS
+	if e.get("salesHub",false):return fposmod(time*0.7,1.0)
 	var f=game.recipe(e)
 	if f.cycle>0 and not f.output.is_empty():
 		var rate=game.speed(e)*(game.state.power.ratio if f.power>0 else 1.0)
@@ -29,7 +30,7 @@ static func phase(game,e) -> float:
 			if e.saleFilters[r] and e.inputs[r]>0:return fposmod(time*2*game.speed(e),1.0)
 	if game.is_project(e.kind) and not e.project.complete:
 		var definition=game.data.projects[e.kind]
-		if game.has_stock(e.project.materials,definition.materials):return fposmod((definition.seconds-e.project.remainingS+game.state.clock.carryS)*2,1.0)
+		if game.central_sales() or game.has_stock(e.project.materials,definition.materials):return fposmod((definition.seconds-e.project.remainingS+game.state.clock.carryS)*2,1.0)
 	if e.kind=="launchpad":
 		for transfer in game.transfers:
 			if transfer.targetId==e.id:return fposmod(time,1.0)

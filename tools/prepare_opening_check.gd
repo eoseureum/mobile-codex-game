@@ -2,7 +2,7 @@ extends SceneTree
 const Factory=preload("res://scripts/core/factory.gd")
 const Store=preload("res://scripts/core/save_store.gd")
 func _initialize():
-	var game=Factory.new();game.fresh(0,true,42)
+	var game=Factory.new();load("res://tests/world_fixture.gd").empty(game)
 	if game.command({"type":"build","kind":"forest","x":62,"y":64})!="OK":quit(1);return
 	while game.state.cash<game.data.facilities.sawmill.cost+game.data.facilities.belt.cost:game.advance(0.25)
 	var camp_time=game.state.clock.elapsedS
