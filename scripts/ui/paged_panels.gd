@@ -1,4 +1,5 @@
 extends RefCounted
+const Insight=preload("res://scripts/core/factory_insight.gd")
 const Opening=preload("res://scripts/ui/opening_ux.gd")
 const Art=preload("res://scripts/ui/pixel_art.gd")
 static func picture(ui,parent,kind):
@@ -48,6 +49,8 @@ static func build(ui):
 		tile(ui,cell,f.name if known else "?",ui._cost(k) if known else "",k if known else "icon_unknown",func():ui.build_kind=k;ui.map.building=k;ui.sheet_fraction=0;ui._layout(),not known)
 		if ui.game.central_sales() and known:
 			var info=ui._button(cell,"생산식",func():ui._recipe_info(k));info.tooltip_text=f.name+" · 생산식";info.set_meta("recipeInfo",k);info.add_theme_font_size_override("font_size",int(12*ui.scale_ui))
+	for unused in range(limit-shown.size()):
+		var empty=Control.new();empty.custom_minimum_size.y=60*ui.scale_ui;empty.mouse_filter=Control.MOUSE_FILTER_IGNORE;g.add_child(empty)
 	if ui.game.state.entities.is_empty():return
 	pager(ui,"build",values.size(),limit,"주요" if ui.catalog_all else "전체",func():ui.catalog_all=not ui.catalog_all;ui.pages.build=0;ui._rebuild())
 static func inventory(ui):
@@ -76,7 +79,7 @@ static func records(ui):
 	var entries=ui.game.state.records.duplicate();entries.reverse()
 	for entry in items(ui,"records",entries,4):
 		var text=entry.type
-		if text.begins_with("first_"):text=ui.game.data.facilities.get(text.trim_prefix("first_"),{}).get("name",{"first_automation":"첫 자동화","first_power":"첫 전력 생산","first_auto_sale":"첫 자동 판매","first_shipment":"첫 주문 출하","first_launch":"첫 로켓 발사","first_clearing":"첫 부지 정리","first_route":"첫 컨베이어 연결"}.get(text,text))
+		if text.begins_with("first_"):text=ui.game.data.facilities.get(text.trim_prefix("first_"),{}).get("name",{"first_automation":"첫 자동화","first_power":"첫 전력 생산","first_auto_sale":"첫 자동 판매","first_shipment":"첫 주문 출하","first_launch":"첫 로켓 발사","first_collection":"첫 수거","first_sale":"첫 판매","first_clearing":"첫 부지 정리","first_route":"첫 컨베이어 연결"}.get(text,text))
 		if text.begins_with("complete_"):text=ui.game.data.facilities.get(text.trim_prefix("complete_"),{}).get("name","도시 건물")+" 완공"
 		if text=="open_world":text="큰 월드 이전"
 		if text.begins_with("stage_"):text=ui.game.data.stageNames[ui.game.data.stages.find(text.trim_prefix("stage_"))]
@@ -85,14 +88,21 @@ static func records(ui):
 static func industry(ui):
 	tabs(ui,[["research","연구"],["city","도시"]],ui.industry_page,func(value):ui.industry_page=value;ui._rebuild())
 	if ui.industry_page=="research":
+		var next=Insight.next_stage(ui.game)
+		ui._label(ui.body,ui.game.data.stageNames[ui.game.stage_index()]+"  →  "+next.name)
+		for condition in next.conditions:
+			var c=condition;var row=ui._row()
+			if c.has("resource"):
+				picture(ui,row,"item_"+c.resource)
+				ui._bind_label(row,func():return ui._resource_name(c.resource)+" · 누적 %d / %d"%[mini(c.need,ui.game.produced(c.resource)),c.need])
+			elif c.has("facility"):
+				picture(ui,row,c.facility if ui.game.unlocked(c.facility) else "icon_unknown")
+				ui._bind_label(row,func():return (ui.game.data.facilities[c.facility].name if ui.game.unlocked(c.facility) else "?")+ (" · 건설됨" if ui.game.has_facility(c.facility) else " · 미건설"))
+			else:ui._bind_label(row,func():return c.name+(" · 완료" if ui.game.recorded(c.record) else " · 대기"))
 		if not ui.game.state.unlocks.get("smelting",false) and ui.game.stage_index()>=1:
-			var row=ui._row()
-			for value in (["copper"] if ui.game.central_sales() else ["copper","stone","coal"]):
-				var r=value;var n=20 if r=="copper" else ui.game.data.research.materials[r]
-				picture(ui,row,"item_"+r);ui._bind_label(row,func():return "%d/%d"%[mini(n,ui.game.produced(r) if r=="copper" else ui.game.stock(r)),n])
 			ui._action("제련 · ₩ "+ui.game.money(ui.game.data.research.cash),{"type":"research","kind":"smelting"},ui.game.produced("copper")<20 or not ui.game.affordable(ui.game.data.research.cash,{} if ui.game.central_sales() else ui.game.data.research.materials))
-		else:ui._label(ui.body,"방치 생산 · 최대 2시간")
 		return
+
 	var values=ui.game.data.projects.keys().filter(func(k):return ui.game.unlocked(k));var shown=items(ui,"city",values);var g=grid(ui)
 	for value in shown:
 		var k=value;tile(ui,g,ui.game.data.facilities[k].name,ui._project_effect(k),k,func():ui.show_tab("build");ui.build_kind=k;ui.map.building=k;ui.sheet_fraction=0;ui._layout())

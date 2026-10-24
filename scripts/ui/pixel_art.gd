@@ -291,6 +291,8 @@ static func image(kind:String,frame=0) -> Image:
 				if kind=="cityWorkshop":gear(im,16,13,n,"b9bf9b")
 				elif kind=="dispatchOffice":rect(im,27,7+n%3,5,3,"f2d591");rect(im,5+n*2,26,3,2,"ddc07e")
 				else:rect(im,8+n,11+stroke,5,2,"cfb07c");rect(im,10+n,13+stroke,1,3,INK)
+		"launchpad_empty":
+			panel(im,2,26,28,5,"95a291");rect(im,4,7,2,20,INK);rect(im,4,8,8,2,"a88c65")
 		"launchpad":
 			panel(im,2,26,28,5,"95a291");rect(im,4,7,2,20,INK);rect(im,4,8,8,2,"a88c65")
 			rect(im,15,2,4,2,INK);rect(im,13,4,8,3,INK);panel(im,12,7,10,19,"ecdfb9")

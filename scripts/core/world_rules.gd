@@ -76,6 +76,20 @@ static func command(game,c:Dictionary) -> String:
 		if result!="PASS":return result
 	var e=game.state.entities.get(c.get("entityId",""),{})
 	match c.get("type",""):
+		"recoverCargo":
+			if e.is_empty() or not game.transport(e):return "INVALID"
+			if e.queue.is_empty():return "EMPTY"
+			var recovered={}
+			for r in e.queue:game.add(recovered,r,1)
+			for r in recovered:
+				if recovered[r]>game.MAX_MONEY-int(game.state.bag.get(r,0)):return "INSUFFICIENT_SPACE"
+			for r in recovered:game.add(game.state.bag,r,recovered[r])
+			e.queue=[];e.flowCredit=0
+		"setSplitPort":
+			var port=c.get("port",-1);var direction=c.get("direction",-1)
+			if e.get("kind","")!="splitter" or port not in [0,1] or direction not in [0,1,2,3]:return "INVALID"
+			if e.splitDirections[1-int(port)]==direction:return "INVALID"
+			e.splitDirections[int(port)]=direction;e.direction=e.splitDirections[0]
 		"expand","setMineResource":return "LOCKED"
 		"build","buildLinked":
 			var kind=c.get("kind","")
@@ -121,7 +135,7 @@ static func command(game,c:Dictionary) -> String:
 				var source=game.at(c.from.x,c.from.y)
 				if not source.is_empty():
 					source.direction=quote.sourceDirection
-					if source.kind=="splitter":source.splitDirections=[source.direction,(int(source.direction)+1)%4]
+					if source.kind=="splitter":source.splitDirections=World.split_ports(game,source,source.direction)
 				for cell in quote.cells:game.create_entity("belt",cell.x,cell.y,{"direction":cell.direction,"investedCash":game.data.facilities.belt.cost})
 				game.event("first_route")
 		"configureWarehouse":

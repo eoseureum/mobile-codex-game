@@ -3,9 +3,14 @@ signal tile_pressed(tile: Vector2i)
 const World=preload("res://scripts/core/world_map.gd")
 const Art=preload("res://scripts/ui/pixel_art.gd")
 const Conveyor=preload("res://scripts/ui/conveyor_view.gd")
+const Insight=preload("res://scripts/core/factory_insight.gd")
+const Overview=preload("res://scripts/ui/world_overview.gd")
 const Motion=preload("res://scripts/ui/facility_motion.gd")
 var game
 var zoom=1.0
+var view_filter="all"
+var strategic_texture:ImageTexture
+var strategic_signature=""
 var tile_size=96.0
 var camera=Vector2.ZERO
 var selection=Vector2i(0,0)
@@ -52,13 +57,14 @@ func focus_point(tile:Vector2i):
 func clamp_camera():
 	if not game.world_mode():return
 	var pad=tile_size*0.5
-	camera.x=clampf(camera.x,size.x-World.SIZE*tile_size*zoom-pad,pad)
-	camera.y=clampf(camera.y,size.y-World.SIZE*tile_size*zoom-pad,pad)
+	var extent=World.SIZE*tile_size*zoom
+	camera.x=(size.x-extent)*.5 if extent<size.x else clampf(camera.x,size.x-extent-pad,pad)
+	camera.y=(size.y-extent)*.5 if extent<size.y else clampf(camera.y,size.y-extent-pad,pad)
 func zoom_by(delta):
 	_zoom_between(size/2,size/2,zoom+delta)
 func _zoom_between(before:Vector2,after:Vector2,value:float):
 	if not is_finite(value):return
-	var next=clampf(value,0.45,1.7)
+	var next=clampf(value,0.025,1.7)
 	camera=after-(before-camera)*next/zoom
 	zoom=next;clamp_camera();queue_redraw()
 func _input(e):
@@ -165,9 +171,27 @@ func _item(resource,center,extent):
 	var pixels=maxf(12,round(extent))
 	var at=(center-Vector2.ONE*pixels*0.5).round()
 	draw_texture_rect_region(Art.texture("item_"+resource),Rect2(at,Vector2.ONE*pixels),Rect2(2,3,28,28))
+func is_strategic() -> bool:return game.world_mode() and zoom<.32
+func _draw_strategic():
+	var signature=str(game.state.world.seed)+str(game.state.world.revision)+game.state.stage+str(game.state.entities.size())+view_filter+(str(int(game.state.clock.elapsedS)) if view_filter=="stopped" else "")
+	if strategic_texture==null or signature!=strategic_signature:
+		strategic_signature=signature;strategic_texture=ImageTexture.create_from_image(Overview.terrain_image(game,view_filter))
+	var unit=tile_size*zoom
+	draw_texture_rect(strategic_texture,Rect2(camera,Vector2.ONE*World.SIZE*unit),false)
+	for e in game.state.entities.values():
+		if e.get("salesHub",false):_corners(entity_screen_rect(e),Color("fff2cf"))
+		elif view_filter=="stopped" and Insight.issue(game,e).kind not in ["active","idle","complete"]:
+			draw_circle(tile_rect(e.x,e.y).get_center(),maxf(3,unit*.5),Color("c77955"))
+	_corners(tile_rect(selection.x,selection.y),Color("fff0ae"))
+func _port(rect,direction,color):
+	var d=Vector2(RustFactory.DIRS[int(direction)]);var center=rect.get_center()+d*rect.size.x*.39
+	var side=Vector2(-d.y,d.x);var span=maxf(3,rect.size.x*.11)
+	draw_line(center-d*span,center+d*span,color,2)
+	draw_line(center+d*span,center+side*span,color,2);draw_line(center+d*span,center-side*span,color,2)
 func _draw():
 	if game==null:return
 	draw_rect(Rect2(Vector2.ZERO,size),Color("a7ba7c"))
+	if is_strategic():_draw_strategic();return
 	var unit=tile_size*zoom
 	var known={}
 	if game.world_mode():
@@ -190,6 +214,7 @@ func _draw():
 			if game.world_mode():
 				if owned and not occupied.has(Vector2i(x,y)):
 					var resource=World.resource_at(game.state.world,x,y)
+					if view_filter!="all" and (resource!=view_filter or not known.get(resource,false)):continue
 					if resource=="log":_sprite("tree",r)
 					elif not resource.is_empty():_sprite("ore_"+(resource if known[resource] else "unknown"),r)
 			else:
@@ -213,7 +238,15 @@ func _draw():
 				if cargo.count>1:
 					draw_string_outline(font,at+Vector2(unit*0.08,unit*0.18),str(cargo.count),HORIZONTAL_ALIGNMENT_LEFT,-1,maxi(10,int(unit*.19)),3,INK)
 					draw_string(font,at+Vector2(unit*0.08,unit*0.18),str(cargo.count),HORIZONTAL_ALIGNMENT_LEFT,-1,maxi(10,int(unit*.19)),Color("fff0ae"))
-		else:_sprite("sales_hub" if e.get("salesHub",false) else e.kind,r,anim)
+		else:_sprite("sales_hub" if e.get("salesHub",false) else "launchpad_empty" if e.kind=="launchpad" and game.state.rocket.launched else e.kind,r,anim)
+		var issue=Insight.issue(game,e)
+		if issue.kind in ["missing","blocked","incompatible","power"]:
+			var badge=r.position+Vector2(r.size.x*.8,r.size.y*.15)
+			draw_circle(badge,maxf(5,unit*.11),Color("c77955") if issue.kind in ["blocked","incompatible"] else Color("e8cf7d"))
+			if not issue.resource.is_empty():_item(issue.resource,badge,unit*.22)
+			else:draw_string(font,badge+Vector2(-2,4),"!",HORIZONTAL_ALIGNMENT_LEFT,-1,maxi(10,int(unit*.22)),INK)
+		if e.kind=="splitter" and e.id==selected_id:
+			for direction in e.splitDirections:_port(r,direction,Color("fff0ae"))
 		if e.job!=null:
 			var percent=clampf(1-e.job.remaining/game.recipe(e).cycle,0,1)
 			var p=r.size.x/32
@@ -236,6 +269,14 @@ func _draw():
 			draw_rect(Rect2(r.position+Vector2(25,2)*p,Vector2(2,5)*p),INK);draw_rect(Rect2(r.position+Vector2(29,2)*p,Vector2(2,5)*p),INK)
 		if game.is_project(e.kind) and not e.project.complete:_corners(r.grow(-unit*0.08),Color("c99c5c"))
 		if e.id==selected_id:_corners(r.grow(-unit*0.02),Color("fff0ae"))
+	if not building.is_empty() and game.data.facilities.has(building):
+		var ghost=tile_rect(selection.x,selection.y)
+		if game.at(selection.x,selection.y).is_empty():
+			draw_texture_rect(Art.texture(building),ghost,false,Color(1,1,1,.5))
+			var f=game.data.facilities[building]
+			if not f.output.is_empty():_port(ghost,1,Color("fff0ae"))
+			if not f.input.is_empty():
+				for direction in [0,2,3]:_port(ghost,direction,Color("dbedc2"))
 	if not opportunity.is_empty():
 		var ghost=tile_rect(opportunity.x,opportunity.y)
 		var ready=game.affordable(opportunity.cash,opportunity.materials)

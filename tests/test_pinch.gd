@@ -36,7 +36,7 @@ func run():
 	check(selections.size()==1,"canceled touch cannot issue a tile action")
 	await finger(0,Vector2(300,200),true);await finger(1,Vector2(320,200),true);await move(1,Vector2(700,200))
 	check(is_equal_approx(city.zoom,1.7),"pinching respects maximum zoom")
-	await move(1,Vector2(300.2,200));check(is_equal_approx(city.zoom,0.45),"pinching respects minimum zoom and nearly coincident fingers")
+	await move(1,Vector2(300.2,200));check(is_equal_approx(city.zoom,0.025),"pinching respects minimum zoom and nearly coincident fingers")
 	await finger(1,Vector2(300.2,200),false);await finger(0,Vector2(300,200),false)
 	var overlay=Button.new();overlay.position=Vector2(500,350);overlay.size=Vector2(200,150);root.add_child(overlay);await process_frame
 	await finger(0,Vector2(250,250),true);await finger(1,Vector2(450,250),true);await move(1,Vector2(550,400));await finger(1,Vector2(550,400),false);await finger(0,Vector2(250,250),false)
@@ -44,7 +44,7 @@ func run():
 	check(selections.size()==2,"lifting over a floating card ends the gesture and does not leave touch state stuck")
 	var old=city.zoom;await finger(0,Vector2(250,250),true);await finger(1,Vector2(550,400),true);await move(1,Vector2(600,400));await finger(1,Vector2(600,400),false);await finger(0,Vector2(250,250),false)
 	check(city.zoom==old and selections.size()==2,"a second finger starting on a card neither zooms the map nor causes an accidental tile action")
-	city.zoom=1;anchor=world_at(Vector2(250,250))
+	city.zoom=1;city.clamp_camera();anchor=world_at(Vector2(250,250))
 	var hover=InputEventMouseMotion.new();hover.position=Vector2(250,250);Input.parse_input_event(hover);await process_frame
 	var magnify=InputEventMagnifyGesture.new();magnify.position=Vector2(250,250);magnify.factor=1.2;city._gui_input(magnify);await process_frame
 	check(is_equal_approx(city.zoom,1.2) and world_at(Vector2(250,250)).distance_to(anchor)<0.02,"native magnify gesture uses its own cursor position")

@@ -1,4 +1,5 @@
 extends RefCounted
+const Insight=preload("res://scripts/core/factory_insight.gd")
 const Panels=preload("res://scripts/ui/paged_panels.gd")
 static func show(ui,e):
 	if e.get("salesHub",false):
@@ -13,6 +14,11 @@ static func show(ui,e):
 			var row=ui._row()
 			for i in range(4):
 				var direction=i;var b=ui._button(row,["↑","→","↓","←"][i],func():ui._command({"type":"rotate","entityId":e.id,"direction":direction}));b.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+				if e.kind=="splitter":b.disabled=true
+			if e.kind=="splitter":
+				var ports=ui._row()
+				for n in range(2):
+					var port=n;ui._button(ports,"출구 %d %s"%[n+1,["↑","→","↓","←"][int(e.splitDirections[n])]],func():ui._pick_direction(e,port))
 			ui._button(row,"철거",func():ui._demolish(e))
 			var actions=ui._row();ui._button(actions,"재개" if e.paused else "일시 정지",func():ui._command({"type":"pause","entityId":e.id}));ui._spacer(actions)
 			if e.kind=="warehouse":
@@ -54,14 +60,18 @@ static func production_title(game,e) -> String:
 	var f=game.recipe(e);var level=int(e.level)
 	if e.kind=="warehouse":return "창고 확장\n%d → %d개 · %.2f → %.2f개/s"%[game.storage_capacity(e),game.storage_capacity(e)+200,2*game.speed(e),2*(game.speed(e)+0.12)]
 	var name="발전" if e.kind=="generator" else "운송" if game.transport(e) else "생산"
-	return name+" · Lv.%d\n"%level+effect(game,e,0.12 if level<f.maxLevel else 0.0)
+	if game.transport(e) or e.kind=="generator":return name+" · Lv.%d\n"%level+effect(game,e,0.12 if level<f.maxLevel else 0.0)
+	var observed=Insight.observe(game,e)
+	var actual="집계 중" if observed.actual<0 else "실제 %.1f/분"%observed.actual
+	return name+" · Lv.%d\n"%level+effect(game,e,0.12 if level<f.maxLevel else 0.0)+"\n최대 %.1f/분 · "%observed.nominal+actual
+
 static func manager_title(game,e) -> String:
 	if not game.recorded("first_auto_sale"):return "?"
 	var manager=int(e.get("managerLevel",0));var title="매니저 · %d / 3"%manager
 	if e.kind=="warehouse":return title+"\n판매 %.2f → %.2f개/s"%[2*game.speed(e),2*(game.speed(e)+0.08)]
 	return title+"\n"+effect(game,e,0.08 if manager<3 else 0.0)
 static func upgrade(ui,title,cost,command,disabled):
-	var row=ui._row();var label=ui._bind_label(row,title) if title is Callable else ui._label(row,title);label.clip_text=true;label.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var row=ui._row();var label=ui._bind_label(row,title) if title is Callable else ui._label(row,title);label.clip_text=true;label.add_theme_font_size_override("font_size",int(12*ui.scale_ui));label.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	var b=ui._button(row,cost,func():ui._command(command));b.disabled=disabled
 static func project(ui,e):
 	var game=ui.game;var rocket=e.kind=="launchpad";var definition=game.data.rocket if rocket else game.data.projects[e.kind].materials
@@ -70,16 +80,30 @@ static func project(ui,e):
 		ui._bind_label(ui.body,func():return "완공" if e.project.complete else "공사 %d초"%ceil(e.project.remainingS))
 		var row=ui._row();ui._spacer(row);ui._button(row,"철거",func():ui._demolish(e));return
 	var received=game.state.rocket.delivered if rocket else e.project.materials
-	var shown=Panels.items(ui,"project",definition.keys());var g=Panels.grid(ui)
+	var shown=definition.keys() if rocket else Panels.items(ui,"project",definition.keys())
+	var list=Panels.grid(ui) if rocket else ui.body
 	for value in shown:
-		var r=value;var row=HBoxContainer.new();g.add_child(row);Panels.picture(ui,row,"item_"+r);ui._bind_label(row,func():return "%d / %d"%[received.get(r,0),definition[r]])
-	Panels.pager(ui,"project",definition.size(),4,"철거",func():ui._demolish(e))
-	if rocket:ui._action("로켓 발사",{"type":"launch"},bool(game.state.rocket.launched))
-	else:ui._bind_label(ui.body,func():return "완공" if e.project.complete else ("창고 자동 조달 · 자재 대기" if not game.has_stock(e.project.materials,definition) else "공사 %d초"%ceil(e.project.remainingS)))
+		var r=value;var row=HBoxContainer.new();row.custom_minimum_size.y=36*ui.scale_ui;row.size_flags_horizontal=Control.SIZE_EXPAND_FILL;list.add_child(row)
+		var icon=TextureRect.new();icon.texture=load("res://scripts/ui/pixel_art.gd").texture("item_"+r);icon.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;icon.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED;icon.custom_minimum_size=Vector2(22,22)*ui.scale_ui;row.add_child(icon)
+		var column=VBoxContainer.new();column.add_theme_constant_override("separation",0);row.add_child(column)
+		var name=ui._label(column,ui._resource_name(r));name.add_theme_font_size_override("font_size",int(11*ui.scale_ui))
+		ui._bind_label(column,func():return "%d / %d"%[received.get(r,0),definition[r]])
+	if rocket:
+		ui._label(ui.body,"초과 납품 → 가방")
+		var ready=Insight.rocket_ready(game);var row=ui._row();ui._spacer(row)
+		var launch=ui._button(row,"발사 완료" if game.state.rocket.launched else "로켓 발사" if ready else "조립 중",func():ui._launch(e))
+		ui.bindings.append(func():
+			if not is_instance_valid(launch):return
+			var can_launch=Insight.rocket_ready(game)
+			launch.text="발사 완료" if game.state.rocket.launched else "로켓 발사" if can_launch else "조립 중";launch.disabled=not can_launch)
+	else:Panels.pager(ui,"project",definition.size(),4,"철거",func():ui._demolish(e))
 
 static func controls(ui,e):
 	var row=ui._row();ui._spacer(row)
 	ui._button(row,"관리",func():ui.inspect_details=true;ui.inspector_page="improve";ui._rebuild())
 	if not ui.game.is_project(e.kind) and e.kind!="launchpad":
-		ui._button(row,"회전 "+["↑","→","↓","←"][int(e.direction)],func():ui._command({"type":"rotate","entityId":e.id,"direction":(int(e.direction)+1)%4}))
+		if e.kind=="splitter":
+			for n in range(2):
+				var port=n;ui._button(row,"%d %s"%[n+1,["↑","→","↓","←"][int(e.splitDirections[n])]],func():ui._pick_direction(e,port))
+		else:ui._button(row,"회전 "+["↑","→","↓","←"][int(e.direction)],func():ui._pick_direction(e))
 	ui._button(row,"철거",func():ui._demolish(e))

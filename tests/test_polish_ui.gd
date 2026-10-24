@@ -30,9 +30,16 @@ func run():
 		ui.size=screen;ui._rebuild();ui._layout();await process_frame;await process_frame;await process_frame
 		check(ui.body.get_combined_minimum_size().y<=ui.scroll.size.y+2,"early control card fits "+str(screen))
 		check(ui.body.get_combined_minimum_size().x<=ui.scroll.size.x+2,"early control card width "+str(screen))
-	ui.size=Vector2(390,844);ui._layout()
+	ui.size=Vector2(390,844);ui._layout();await process_frame;await process_frame;await process_frame
 	var old=int(camp.direction);await tap(ui,"회전 →")
-	check(camp.direction==(old+1)%4 and not ui.dialog.visible,"primary rotation is one tap")
+	check(camp.direction==old and not ui.dialog.visible,"direction picker leaves live output unchanged")
+	var picker=ui.find_child("DirectionPicker",true,false)
+	check(picker!=null,"primary rotation opens direct direction selection")
+	if picker!=null:
+		for b in buttons(picker):
+			if b.text=="↓":b.pressed.emit();break
+		await process_frame;await process_frame
+	check(camp.direction==2,"choose final direction without intermediate rotation")
 	await tap(ui,"철거")
 	check(ui.game.state.entities.is_empty() and ui.selected=="" and not ui.dialog.visible,"primary demolition is one tap and clears inspector")
 	check(ui.game.state.cash==2250,"first camp recovery funds visible state")

@@ -40,6 +40,11 @@ jobs:
         run: godot --headless --path . --script tests/test_runner.gd
       - name: Check warehouse-funded city projects and save compatibility
         run: godot --headless --path . --script tests/test_project_stock.gd
+      - name: Check factory diagnostics, touch safety, economy and rocket readiness
+        run: |
+          godot --headless --path . --script tests/test_factory_ux.gd
+          godot --headless --path . --script tests/test_factory_ux_ui.gd
+          godot --headless --path . --script tests/test_economy_curve.gd
       - name: Check central sales, collection, footprint, migration and touch UI
         run: |
           godot --headless --path . --script tests/test_sales_hub.gd

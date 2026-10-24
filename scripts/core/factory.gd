@@ -3,6 +3,7 @@ extends RefCounted
 
 const World=preload("res://scripts/core/world_map.gd")
 const WorldRules=preload("res://scripts/core/world_rules.gd")
+const Insight=preload("res://scripts/core/factory_insight.gd")
 const SalesHub=preload("res://scripts/core/sales_hub.gd")
 const DT = 0.25
 const GENERATOR_BURN_S = 10.0
@@ -20,6 +21,9 @@ var _indexed_source={}
 var _indexed_size=-1
 var _positions={}
 var _effects_cache={}
+var _issues={}
+var production_samples={}
+var observation_started=0.0
 
 func _init():
 	modern_data = JSON.parse_string(FileAccess.get_file_as_string("res://data/catalog.json"))
@@ -29,7 +33,7 @@ func _init():
 func fresh(now_ms = -1,open_world=true,seed_value=-1):
 	state = data.initial.duplicate(true)
 	state.createdAtMs = int(Time.get_unix_time_from_system()*1000) if now_ms < 0 else now_ms
-	invalidate_index();clear_effects()
+	invalidate_index();clear_effects();reset_observation()
 	transfers.clear();sales.clear()
 	if open_world:WorldRules.setup(self,int(seed_value) if seed_value>=0 else int(Time.get_unix_time_from_system()*1000)%2147483647)
 
@@ -43,7 +47,12 @@ func upgrade_world() -> bool:
 		if WorldRules.migrate(self,int(state.createdAtMs)%2147483647)!="OK":return false
 	return SalesHub.install(self)
 func invalidate_index():_indexed_size=-1
-func clear_effects():_effects_cache={}
+func clear_effects():_effects_cache={};_issues={}
+func reset_observation():
+	production_samples={};observation_started=state.clock.elapsedS
+func record_production(e,count):
+	var samples=production_samples.get(e.id,[]).filter(func(item):return item.at>state.clock.elapsedS-60)
+	samples.append({"at":state.clock.elapsedS,"count":count});production_samples[e.id]=samples
 func stock(r) -> int:return WorldRules.stock(self,r) if world_mode() else int(state.bag.get(r,0))
 func storage_capacity(e) -> int:return 200*int(e.level)
 func construction_materials(kind) -> Dictionary:
@@ -407,6 +416,7 @@ func production():
 			for r in e.job.output:
 				add(e.outputs,r,e.job.output[r])
 				add(state.totals.produced,r,e.job.output[r])
+				record_production(e,e.job.output[r])
 			if world_mode():WorldRules.pioneer_sale(self,e)
 			if not world_mode():
 				var value=e.get("incomeCredit",0)+income_per_batch(e)
@@ -682,7 +692,9 @@ func logistics():
 				reserved[g]=reserved.get(g,0)+1
 				if transport(e): e.queue.pop_front(); snapshots[e.id].queue.pop_front()
 				else: add(e.outputs,r,-1); add(snapshots[e.id].outputs,r,-1)
-				if target.kind=="launchpad": add(state.rocket.delivered,r,1)
+				if target.kind=="launchpad":
+					if state.rocket.delivered.get(r,0)<data.rocket.get(r,0):add(state.rocket.delivered,r,1)
+					else:add(state.bag,r,1)
 				elif target.get("salesHub",false) and central_sales():
 					add(target.inputs,r,1);SalesHub.sell_arrivals(self,target)
 				elif transport(target): target.queue.append(r)
@@ -703,9 +715,15 @@ func transport_space(target,r,source,snapshots,reserved) -> float:
 	var used=reserved.get(target.id+":"+rk,0)
 	var dir=DIRS[int(target.direction)]
 	var backwards=source.x==target.x+dir.x and source.y==target.y+dir.y
-	if target.kind=="launchpad": return maxf(0,data.rocket.get(r,0)-state.rocket.delivered.get(r,0))
+	if target.kind=="launchpad":
+		if state.rocket.launched or not data.rocket.has(r):return 0
+		return 1 if state.rocket.delivered.get(r,0)<data.rocket[r] or state.bag.get(r,0)+used<MAX_MONEY else 0
 	if target.get("salesHub",false) and central_sales():return 1 if sale_price(target,r)<=MAX_MONEY-int(state.cash) else 0
-	if transport(target): return 0 if backwards else maxf(0,(4 if target.level==1 else 8)-own.queue.size()-used)
+	if transport(target):
+		if target.kind=="splitter":
+			for output in target.splitDirections:
+				if Vector2i(int(target.x),int(target.y))+DIRS[int(output)]==Vector2i(int(source.x),int(source.y)):return 0
+		return 0 if backwards else maxf(0,(4 if target.level==1 else 8)-own.queue.size()-used)
 	if target.kind=="warehouse":
 		if world_mode():return 0 if backwards and target.get("dispatchResource")!=null else maxf(0,minf(capacity(target)-own.inputs.get(r,0)-used,storage_capacity(target)-target.inventory.get(r,0)-own.inputs.get(r,0)-used))
 		return 0 if backwards else maxf(0,capacity(target)-own.inputs.get(r,0)-used)
@@ -735,6 +753,8 @@ func advance(seconds):
 	for i in range(count): tick()
 
 func status(e) -> String:
+	return Insight.issue(self,e).text if world_mode() else status_fallback(e)
+func status_fallback(e) -> String:
 	if e.paused: return "잠시 쉬는 중"
 	if is_project(e.kind): return "운영 중" if e.project.complete else "공사 중"
 	if e.kind=="warehouse": return "자동 입출고"
