@@ -12,6 +12,7 @@ const Panels=preload("res://scripts/ui/paged_panels.gd")
 const FacilityTabs=preload("res://scripts/ui/facility_tabs.gd")
 const IncomeMeter=preload("res://scripts/ui/income_meter.gd")
 const RecipePreview=preload("res://scripts/ui/recipe_preview.gd")
+const Insight=preload("res://scripts/core/factory_insight.gd")
 const WorldLibrary=preload("res://scripts/core/world_library.gd")
 const StartScreen=preload("res://scripts/ui/start_screen.gd")
 var game=Factory.new()
@@ -71,8 +72,12 @@ var industry_page="research"
 var trade_page="offers"
 var inspector_page="improve"
 var panel_revision=0
+var panel_ready=true
 var panel_available=1.0
 var recipe_button: Button
+var filter_button: Button
+var placement_info:Panel
+var placement_label:Label
 
 func _ready():
 	auto_checks="--ui-check" in OS.get_cmdline_user_args()
@@ -90,6 +95,9 @@ func _ready():
 	stage_label=Label.new();stage_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;wallet.add_child(stage_label)
 	var warehouse=_floating_button(header,"창고","inventory",func():show_tab("inventory"));warehouse.name="WarehouseButton"
 	recipe_button=_button(header,"생산식",func():if not build_kind.is_empty():_recipe_info(build_kind));recipe_button.name="RecipeInfoButton"
+	filter_button=_button(header,"지도 필터",_choose_filter);filter_button.name="MapFilterButton"
+	placement_info=Panel.new();placement_info.mouse_filter=Control.MOUSE_FILTER_IGNORE;header.add_child(placement_info)
+	placement_label=Label.new();placement_label.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;placement_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;placement_info.add_child(placement_label)
 	sheet=Panel.new();add_child(sheet)
 	handle=_button(sheet,"",func():
 		if not drag_moved:
@@ -142,7 +150,7 @@ func _show_start(note=""):
 
 func _enter_game():
 	selected="e1";selected_tile=Vector2i.ZERO;tab="map";inspect_details=false;sheet_fraction=0.42
-	build_kind="";pages.clear();catalog_all=false;inventory_details=false;income_meter=IncomeMeter.new()
+	build_kind="";pages.clear();catalog_all=false;inventory_details=false;income_meter=IncomeMeter.new();game.reset_observation();map.view_filter="all"
 	menu_loading=false;busy=false;visible_game=true;paused_at=0.0;game_started=true
 	last_frame_at=Time.get_unix_time_from_system()
 	if start_screen!=null:start_screen.set_loading(false);start_screen.hide()
@@ -239,12 +247,13 @@ func _spacer(row):
 func _action(text,c:Dictionary,disabled=false):
 	var row=_row();_spacer(row);var b=_button(row,text,func():_command(c));b.disabled=disabled;return b
 func _error(code) -> String:
-	return {"LOCKED":"아직 잠겨 있어요.","INSUFFICIENT_CASH":"돈이 부족해요.","INSUFFICIENT_RESOURCE":"도시 자재가 부족해요.","OCCUPIED":"이미 시설이 있어요.","PROTECTED":"시작 생산라인은 보존해요.","BLOCKED":"나무나 광맥이 길을 막고 있어요.","RESOURCE_REQUIRED":"시설에 맞는 숲이나 광맥을 선택해 주세요.","TOO_LARGE":"작업 범위를 256칸 이내로 줄여 주세요.","EMPTY":"정리하거나 연결할 대상이 없어요.","WRONG_PORT":"도착 시설의 출구 쪽이에요. 방향을 바꿔 주세요."}.get(code,"위치와 연결을 다시 확인해 주세요.")
+	return {"PORT_OCCUPIED":"분배기의 바꿀 출구를 먼저 선택해 주세요.","INSUFFICIENT_SPACE":"가방이 가득 찼어요.","LOCKED":"아직 잠겨 있어요.","INSUFFICIENT_CASH":"돈이 부족해요.","INSUFFICIENT_RESOURCE":"도시 자재가 부족해요.","OCCUPIED":"이미 시설이 있어요.","PROTECTED":"시작 생산라인은 보존해요.","BLOCKED":"나무나 광맥이 길을 막고 있어요.","RESOURCE_REQUIRED":"시설에 맞는 숲이나 광맥을 선택해 주세요.","TOO_LARGE":"작업 범위를 256칸 이내로 줄여 주세요.","EMPTY":"정리하거나 연결할 대상이 없어요.","WRONG_PORT":"도착 시설의 출구 쪽이에요. 방향을 바꿔 주세요."}.get(code,"위치와 연결을 다시 확인해 주세요.")
 func _command(c):
 	if busy:return
 	var result=game.command(c)
 	if result!="OK":message(_error(result));return
 	if c.get("type") in ["build","buildLinked"]:selected=game.at(c.x,c.y).get("id","")
+	if c.get("type")=="recoverCargo":map.particles=[]
 	_save();_rebuild()
 func message(text):
 	toast_label.text=text;toast_until=Time.get_ticks_msec()+3500;_layout()
@@ -284,6 +293,8 @@ func _layout():
 	var left_width=size.x*0.5 if wide else size.x
 	warehouse.position.x=left_width-80*u
 	recipe_button.visible=game.central_sales() and tab=="build" and not build_kind.is_empty()
+	filter_button.visible=game_started and Opening.feature(game,"overview")
+	filter_button.position=Vector2(left_width-100*u,(150 if recipe_button.visible else 94)*u);filter_button.size=Vector2(84,48)*u
 	recipe_button.position=Vector2(left_width-96*u,94*u);recipe_button.size=Vector2(80,48)*u
 	var dock_width=minf(384*u,left_width-32*u)
 	nav.add_theme_constant_override("separation",int(8*u))
@@ -299,10 +310,17 @@ func _layout():
 	sheet.add_theme_stylebox_override("panel",_box(Color("fff5d9"),12))
 	handle.custom_minimum_size=Vector2(48,48)*u;handle.position=Vector2.ZERO;handle.size=Vector2(width,48*u)
 	for state in ["normal","hover","pressed","focus"]:handle.add_theme_stylebox_override(state,StyleBoxEmpty.new())
-	scroll.position=Vector2(14,52)*u;scroll.size=Vector2(width-28*u,maxf(0,height-60*u));scroll.visible=sheet_fraction>0
+	scroll.position=Vector2(14,52)*u;scroll.size=Vector2(width-28*u,maxf(0,height-60*u));scroll.visible=sheet_fraction>0 and panel_ready
 	body.add_theme_constant_override("separation",int(6*u))
 	map_buttons.add_theme_constant_override("separation",int(8*u))
 	for b in map_buttons.get_children():b.custom_minimum_size=Vector2(48,48)*u
+	placement_info.visible=game_started and not build_kind.is_empty() and sheet_fraction==0
+	placement_info.position=Vector2(16*u,sheet.position.y-72*u);placement_info.size=Vector2(left_width-112*u,64*u);placement_info.add_theme_stylebox_override("panel",_box(Color("fff2cf")))
+	placement_label.position=Vector2(10,6)*u;placement_label.size=placement_info.size-Vector2(20,12)*u;placement_label.add_theme_font_size_override("font_size",int(11*u))
+	if placement_info.visible:
+		var f=game.data.facilities[build_kind];var inputs=[]
+		for r in f.input:inputs.append(_resource_name(r)+" "+str(int(f.input[r])))
+		placement_label.text=f.name+" · "+_cost(build_kind)+"\n"+(" + ".join(inputs) if not inputs.is_empty() else "숲에 설치" if build_kind=="forest" else "광맥에 설치" if build_kind=="mine" else _project_effect(build_kind) if game.is_project(build_kind) else "납품표 · 정보에서 확인" if build_kind=="launchpad" else "출구 →")
 	map_buttons.position=Vector2(size.x-64*u,sheet.position.y-176*u);map_buttons.size=Vector2(48,160)*u;map_buttons.visible=game_started and sheet_fraction==0
 	for b in map_buttons.get_children():_size_floating_button(b,u,false)
 	toast_label.position=Vector2(16,116)*u;toast_label.size=Vector2(size.x-32*u,44*u);toast_label.add_theme_font_size_override("font_size",int(13*u))
@@ -332,6 +350,39 @@ func _layout_title():
 		b.add_theme_stylebox_override("normal",_box(Color("e2b86b") if active else Color("fff2cf")))
 func show_tab(value):
 	world_tools.reset();build_kind="";inspect_details=false;tab=value;sheet_fraction=0 if tab=="map" else 0.48;_rebuild();_layout()
+func _choose_filter():
+	var popup=PopupPanel.new();popup.name="MapFilters";popup.add_theme_stylebox_override("panel",_box(Color("fff5d9")));add_child(popup)
+	var grid=GridContainer.new();grid.columns=2;popup.add_child(grid)
+	for value in ["all","log","stone","coal","copper","iron","stopped"]:
+		var r=value;var known=r in ["all","stopped"] or game.known_resource(r)
+		var label="전체" if r=="all" else "정지 시설" if r=="stopped" else _resource_name(r)
+		var b=_button(grid,label if known else "?",func():map.view_filter=r;filter_button.text=label;popup.hide();map.queue_redraw())
+		b.custom_minimum_size=Vector2(130,48)*scale_ui;b.disabled=not known
+	popup.popup_hide.connect(func():popup.queue_free());popup.popup_centered(Vector2i(int(280*scale_ui),int(220*scale_ui)))
+func _launch(e):
+	if busy or not Insight.rocket_ready(game):return
+	var previous=game.state.duplicate(true)
+	var result=game.command({"type":"launch"})
+	if result!="OK":message(_error(result));return
+	if not _save():
+		game.state=previous;game.invalidate_index();game.clear_effects();_rebuild();return
+	_rebuild();map.focus_point(Vector2i(int(e.x),int(e.y)))
+	var sequence=load("res://scripts/ui/launch_sequence.gd").new();sequence.name="LaunchSequence";sequence.scale_ui=scale_ui;sequence.launch_at=map.entity_screen_rect(e).get_center()+Vector2(0,map.tile_size*map.zoom*.4);sequence.summary="도시 기록 · %d분\n첫 로켓을 발사했어요"%int(game.state.clock.elapsedS/60);add_child(sequence)
+	sequence.finished.connect(func():message("도시 기록 · 첫 로켓 발사"))
+func _pick_direction(e,port=0):
+	var popup=PopupPanel.new();popup.name="DirectionPicker";popup.add_theme_stylebox_override("panel",_box(Color("fff5d9")));add_child(popup)
+	var column=VBoxContainer.new();column.add_theme_constant_override("separation",int(8*scale_ui));popup.add_child(column)
+	_label(column,("출구 "+str(port+1)) if e.kind=="splitter" else "출구 방향")
+	var row=HBoxContainer.new();column.add_child(row)
+	for i in range(4):
+		var direction=i
+		var b=_button(row,["↑","→","↓","←"][i],func():
+			popup.hide()
+			_command({"type":"setSplitPort","entityId":e.id,"port":port,"direction":direction} if e.kind=="splitter" else {"type":"rotate","entityId":e.id,"direction":direction}))
+		b.custom_minimum_size=Vector2(60,56)*scale_ui
+		b.disabled=e.kind=="splitter" and e.splitDirections[1-port]==i
+	popup.popup_hide.connect(func():popup.queue_free())
+	popup.popup_centered(Vector2i(int(minf(296*scale_ui,size.x-24*scale_ui)),int(100*scale_ui)))
 func _demolish(e):
 	if busy:return
 	var refund=game.demolition_refund(e)
@@ -370,6 +421,8 @@ func _build_at(kind,tile,accepted=false):
 		selected=game.at(tile.x,tile.y).id;tab="map";inspect_details=false;build_kind="";sheet_fraction=0.42;_save();_rebuild();_layout()
 	else:message(_error(result))
 func _tile(tile):
+	if map.is_strategic():
+		map.zoom=.6;map.focus_point(tile);return
 	if game.world_mode() and not game.owned(tile.x,tile.y):return
 	if not game.world_mode() and (tile.x<0 or tile.y<0 or tile.x>=18 or tile.y>=12):return
 	selected_tile=tile;map.selection=tile
@@ -393,6 +446,7 @@ func _signature() -> String:
 	return value
 func _rebuild():
 	if body==null:return
+	panel_ready=false;scroll.hide()
 	map.opportunity={}
 	var previous=scroll.scroll_vertical
 	bindings=[]
@@ -413,8 +467,9 @@ func _rebuild():
 	_fit_sheet.call_deferred(panel_revision)
 func _fit_sheet(revision):
 	await get_tree().process_frame
-	if revision!=panel_revision or sheet_fraction<=0 or drag_sheet:return
-	sheet_fraction=clampf((body.get_combined_minimum_size().y+60*scale_ui)/maxf(1,panel_available),0.01,1.0)
+	if revision!=panel_revision:return
+	panel_ready=true
+	if sheet_fraction>0 and not drag_sheet:sheet_fraction=clampf((body.get_combined_minimum_size().y+60*scale_ui)/maxf(1,panel_available),0.01,1.0)
 	_layout()
 func _facility():
 	var e=game.state.entities.get(selected,{})

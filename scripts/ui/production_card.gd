@@ -83,6 +83,7 @@ static func show(ui,e):
 		var savings=ProgressBar.new();savings.show_percentage=false;savings.custom_minimum_size.y=6*ui.scale_ui;ui.body.add_child(savings)
 		ui.bindings.append(func():if is_instance_valid(savings):savings.value=100.0*game.state.cash/maxf(1,suggestion.cash))
 	else:
+		if game.transport(e):ui._button(row,"회수",func():ui._command({"type":"recoverCargo","entityId":e.id})).disabled=e.queue.is_empty()
 		var connect=ui._button(row,"연결",func():ui.world_tools.begin("route");ui.world_tools.origin={"x":int(e.x),"y":int(e.y)};ui.map.work_origin=Vector2i(int(e.x),int(e.y));ui._layout_title())
 		connect.disabled=not game.world_mode() or (game.recipe(e).output.is_empty() and not game.transport(e))
 		if game.transport(e):
@@ -95,7 +96,7 @@ static func ready_count(e) -> int:
 	return total
 static func collection(ui,e):
 	var row=ui._row();row.name="CollectionRow"
-	var label=ui._bind_label(row,func():return "완료 %d개"%ready_count(e));label.clip_text=true;label.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var label=ui._bind_label(row,func():return ui.game.status(e));label.clip_text=true;label.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	var button=ui._button(row,"",func():ui._command({"type":"collect","entityId":e.id}));button.name="CollectButton"
 	button.custom_minimum_size=Vector2(100,48)*ui.scale_ui
 	ui.bindings.append(func():
@@ -105,14 +106,21 @@ static func hub(ui,e):
 	var game=ui.game
 	var row=ui._row();ui._spacer(row)
 	var all_button=ui._button(row,"모두 판매",func():ui._command({"type":"sellInventory","entityId":e.id}));all_button.name="SellAllButton"
+	var total=ui._bind_label(row,func():
+		var value=0
+		for r in game.state.bag:value+=game.stock(r)*game.sale_price(e,r)
+		return "판매액 ₩ "+game.money(value))
+	total.add_theme_font_size_override("font_size",int(11*ui.scale_ui));row.move_child(total,0)
 	ui.bindings.append(func():
 		if is_instance_valid(all_button):all_button.disabled=game.state.bag.values().all(func(n):return n<=0))
 	var resources=game.data.resources.keys().filter(func(r):return game.stock(r)>0)
 	var shown=Panels.items(ui,"hub_bag",resources);var grid=Panels.grid(ui)
 	for resource_id in shown:
 		var r=resource_id;var cell=HBoxContainer.new();grid.add_child(cell);cell.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-		picture(ui,cell,"item_"+r)
-		var amount=ui._bind_label(cell,func():return str(int(game.stock(r))));amount.clip_text=true;amount.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		picture(ui,cell,"item_"+r);cell.get_child(0).custom_minimum_size=Vector2(24,24)*ui.scale_ui
+		var stack=VBoxContainer.new();stack.add_theme_constant_override("separation",0);stack.size_flags_horizontal=Control.SIZE_EXPAND_FILL;cell.add_child(stack)
+		var amount=ui._bind_label(stack,func():return str(int(game.stock(r))));amount.clip_text=true;amount.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		var price=ui._label(stack,"₩ "+game.money(game.sale_price(e,r))+"/개");price.add_theme_font_size_override("font_size",int(10*ui.scale_ui));price.clip_text=true
 		var sell=ui._button(cell,"판매",func():ui._command({"type":"sellInventory","entityId":e.id,"resource":r}));sell.set_meta("sellResource",r)
 		sell.tooltip_text=ui._resource_name(r)+" · ₩ "+game.money(game.sale_price(e,r))+" / 개"
 		ui.bindings.append(func():if is_instance_valid(sell):sell.disabled=game.stock(r)<=0)

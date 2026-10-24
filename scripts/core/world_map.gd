@@ -100,9 +100,19 @@ static func direction(a:Vector2i,b:Vector2i) -> int:
 	return 1 if d.x>0 else 3 if d.x<0 else 2 if d.y>0 else 0
 static func accepts_end(game,end:Vector2i,previous:Vector2i) -> bool:
 	var e=game.at(end.x,end.y)
-	if e.is_empty() or e.kind in ["market","launchpad"] or game.is_project(e.kind):return true
+	if e.is_empty() or e.kind in ["market","launchpad","generator"] or game.is_project(e.kind):return true
 	if e.kind=="warehouse" and e.get("dispatchResource")==null:return true
-	return Vector2i(int(e.x),int(e.y))+game.DIRS[int(e.direction)]!=previous
+	for output in e.splitDirections if e.kind=="splitter" else [e.direction]:
+		if Vector2i(int(e.x),int(e.y))+game.DIRS[int(output)]==previous:return false
+	return true
+static func split_ports(game,source,new_direction) -> Array:
+	var ports=source.splitDirections.duplicate()
+	if new_direction in ports:return ports
+	for i in range(ports.size()):
+		var d=game.DIRS[int(ports[i])]
+		if game.at(source.x+d.x,source.y+d.y).is_empty():
+			ports[i]=new_direction;return ports
+	return []
 static func direct_path(a:Vector2i,b:Vector2i,horizontal:bool) -> Array:
 	var path=[a];var p=a
 	for axis in [0,1] if horizontal else [1,0]:
@@ -122,9 +132,11 @@ static func quote_path(game,path:Array,clear:bool) -> Dictionary:
 			if not clear:return failure("BLOCKED")
 			terrain.append(p)
 		cells.append({"x":p.x,"y":p.y,"direction":direction(p,path[i+1]) if i<path.size()-1 else direction(path[i-1],p)})
-	if cells.is_empty():
-		var source=game.at(path[0].x,path[0].y)
-		if source.is_empty() or not game.transport(source) or int(source.direction)==direction(path[0],path[1]):return failure("EMPTY")
+	var source=game.at(path[0].x,path[0].y)
+	var new_direction=direction(path[0],path[1])
+	if source.get("salesHub",false):return failure("PROTECTED")
+	if not source.is_empty() and source.kind=="splitter" and split_ports(game,source,new_direction).is_empty():return failure("PORT_OCCUPIED")
+	if cells.is_empty() and (source.is_empty() or (new_direction in source.splitDirections if source.kind=="splitter" else int(source.direction)==new_direction)):return failure("EMPTY")
 	if cells.size()+game.state.entities.size()>game.entity_limit():return failure("TOO_LARGE")
 	var result=clearance(game,terrain)
 	if not result.ok:return result
@@ -150,11 +162,12 @@ static func route_quote(game,from,to,clear=false) -> Dictionary:
 			for x in range(area.position.x,area.end.x):grid.set_point_solid(Vector2i(x,y),true)
 	grid.set_point_solid(a,false);grid.set_point_solid(b,false)
 	var end_entity=game.at(b.x,b.y)
-	if not end_entity.is_empty() and end_entity.kind not in ["market","launchpad"] and not game.is_project(end_entity.kind) and not (end_entity.kind=="warehouse" and end_entity.get("dispatchResource")==null):
-		var output=b+game.DIRS[int(end_entity.direction)]
-		if output.x>=0 and output.y>=0 and output.x<SIZE and output.y<SIZE:
-			if output==a:return failure("WRONG_PORT")
-			grid.set_point_solid(output,true)
+	if not end_entity.is_empty() and end_entity.kind not in ["market","launchpad","generator"] and not game.is_project(end_entity.kind) and not (end_entity.kind=="warehouse" and end_entity.get("dispatchResource")==null):
+		for direction_value in end_entity.splitDirections if end_entity.kind=="splitter" else [end_entity.direction]:
+			var output=b+game.DIRS[int(direction_value)]
+			if output.x>=0 and output.y>=0 and output.x<SIZE and output.y<SIZE:
+				if output==a:return failure("WRONG_PORT")
+				grid.set_point_solid(output,true)
 	var ids=grid.get_id_path(a,b)
 	if ids.is_empty():return failure("BLOCKED")
 	var path=[]

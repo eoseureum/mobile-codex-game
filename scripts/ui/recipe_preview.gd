@@ -1,7 +1,7 @@
 extends RefCounted
 const Art=preload("res://scripts/ui/pixel_art.gd")
 static func first(game,kind) -> bool:
-	return game.central_sales() and not game.data.facilities[kind].input.is_empty() and not game.recorded("first_"+kind)
+	return game.central_sales() and (not game.data.facilities[kind].input.is_empty() or kind=="launchpad") and not game.recorded("first_"+kind)
 static func clear(ui):
 	var content=ui.dialog.get_node_or_null("RecipeContent")
 	if content!=null:content.hide();ui.dialog.remove_child(content);content.queue_free()
@@ -35,17 +35,30 @@ static func show(ui,kind,install=Callable()):
 		for child in actions.get_children():
 			if not child is Button:child.hide()
 	var column=VBoxContainer.new();column.name="RecipeContent";column.add_theme_constant_override("separation",int(8*u));ui.dialog.add_child(column)
-	var row=HBoxContainer.new();row.alignment=BoxContainer.ALIGNMENT_CENTER;row.add_theme_constant_override("separation",int(12*u));column.add_child(row)
-	var inputs=VBoxContainer.new();row.add_child(inputs)
-	for r in f.input:chip(ui,inputs,r,f.input[r])
-	if f.input.is_empty():ui._label(inputs,"광맥" if kind=="mine" else "숲" if kind=="forest" else "원료 없음")
-	ui._label(row,"→")
-	var outputs=VBoxContainer.new();row.add_child(outputs)
-	if kind=="generator":ui._label(outputs,"전력 +%d"%game.GENERATOR_OUTPUT)
-	elif kind=="mine":ui._label(outputs,"해당 광물 × 1")
+	if game.is_project(kind):
+		ui._label(column,ui._project_effect(kind))
+		ui._label(column,"도시 전체 · 공사 %d초"%game.data.projects[kind].seconds)
+	elif kind=="launchpad":
+		var grid=GridContainer.new();grid.columns=2;column.add_child(grid)
+		for r in game.data.rocket:chip(ui,grid,r,game.data.rocket[r])
+		ui._label(column,"컨베이어로 납품 · 초과분은 가방으로")
 	else:
-		for r in f.output:chip(ui,outputs,r,f.output[r])
-	var timing=ui._label(column,"%.1f초 / 회"%(game.GENERATOR_BURN_S if kind=="generator" else f.cycle)+(" · 전력 %d"%f.power if f.power>0 else ""));timing.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+		var row=HBoxContainer.new();row.alignment=BoxContainer.ALIGNMENT_CENTER;row.add_theme_constant_override("separation",int(12*u));column.add_child(row)
+		var inputs=VBoxContainer.new();row.add_child(inputs)
+		for r in f.input:chip(ui,inputs,r,f.input[r])
+		if f.input.is_empty():ui._label(inputs,"광맥" if kind=="mine" else "숲" if kind=="forest" else "원료 없음")
+		ui._label(row,"→")
+		var outputs=VBoxContainer.new();row.add_child(outputs)
+		if kind=="generator":ui._label(outputs,"전력 +%d"%game.GENERATOR_OUTPUT)
+		elif kind=="mine":ui._label(outputs,"해당 광물 × 1")
+		else:
+			for r in f.output:chip(ui,outputs,r,f.output[r])
+		var timing=ui._label(column,"%.1f초 / 회"%(game.GENERATOR_BURN_S if kind=="generator" else f.cycle)+(" · 전력 %d"%f.power if f.power>0 else ""));timing.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+		if not f.output.is_empty():
+			var worth=0
+			for r in f.output:worth+=int(f.output[r])*game.sale_price(game.sales_hub(),r)
+			ui._label(column,"판매액 ₩ "+game.money(worth)+" / 회")
+
 	var width=minf(330,ui.size.x/u-24)
 	column.custom_minimum_size=Vector2(minf(286,width-24),0)*u
 	ui.dialog.reset_size();ui.dialog.popup_centered(Vector2i(int(width*u),0))
