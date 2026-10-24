@@ -30,7 +30,7 @@ func run():
 		ui.size=screen;ui._rebuild();ui._layout();await process_frame;await process_frame;await process_frame
 		check(ui.body.get_combined_minimum_size().y<=ui.scroll.size.y+2,"early control card fits "+str(screen))
 		check(ui.body.get_combined_minimum_size().x<=ui.scroll.size.x+2,"early control card width "+str(screen))
-	ui.size=Vector2(390,844);ui._layout()
+	ui.size=Vector2(390,844);ui._layout();await process_frame;await process_frame;await process_frame
 	var old=int(camp.direction);await tap(ui,"회전 →")
 	check(camp.direction==old and not ui.dialog.visible,"direction picker leaves live output unchanged")
 	var picker=ui.find_child("DirectionPicker",true,false)

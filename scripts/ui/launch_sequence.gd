@@ -2,6 +2,7 @@ extends Control
 ## Transient celebration. The authoritative launch is saved before this opens.
 signal finished
 var elapsed=0.0
+var started_at=0
 var scale_ui=1.0
 var launch_at=Vector2.ZERO
 var heading:Label
@@ -9,6 +10,7 @@ var detail:Label
 var action:Button
 var summary=""
 func _ready():
+	started_at=Time.get_ticks_msec()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter=Control.MOUSE_FILTER_STOP
 	heading=Label.new();heading.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;heading.add_theme_font_size_override("font_size",int(26*scale_ui));heading.add_theme_color_override("font_color",Color("fff2cf"));add_child(heading)
@@ -20,8 +22,8 @@ func layout():
 	heading.position=Vector2(12*scale_ui,size.y*.12);heading.size=Vector2(size.x-24*scale_ui,44*scale_ui)
 	detail.position=Vector2(12*scale_ui,size.y*.12+48*scale_ui);detail.size=Vector2(size.x-24*scale_ui,60*scale_ui)
 	action.position=Vector2(size.x*.5-80*scale_ui,size.y-80*scale_ui);action.size=Vector2(160,52)*scale_ui
-func _process(delta):
-	elapsed+=minf(delta,.1)
+func _process(_delta):
+	elapsed=maxf(0,(Time.get_ticks_msec()-started_at)/1000.0)
 	heading.text="점화" if elapsed<1.5 else "이륙" if elapsed<4.5 else "첫 로켓 발사"
 	detail.text=summary if elapsed>=4.5 else ""
 	action.text="도시로" if elapsed>=4.5 else "건너뛰기"

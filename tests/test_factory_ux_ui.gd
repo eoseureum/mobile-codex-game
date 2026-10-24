@@ -26,8 +26,8 @@ func run():
 	ui=load("res://scenes/Main.tscn").instantiate();ui.allow_save=false;root.add_child(ui);ui.set_process(false);await settle()
 	ui.game.fresh(0,true,42);ui.game.state.cash=1000000000;ui._enter_game();ui.set_process(false)
 	ui.show_tab("settings")
-	check(not ui.scroll.visible,"moving sheet content cannot receive a tap before its layout settles")
-	await settle();check(ui.scroll.visible,"settled sheet content becomes available without confirmation")
+	check(not ui.panel_ready and is_zero_approx(ui.scroll.modulate.a),"moving sheet content cannot receive a tap before its layout settles")
+	await settle();check(ui.scroll.visible and ui.scroll.modulate.a==1,"settled sheet content becomes available without confirmation")
 	var e=ui.game.at(62,64);ui._tile(Vector2i(62,64));await settle()
 	var rotate=button(ui.body,"회전")
 	if rotate!=null:
@@ -91,6 +91,10 @@ func run():
 		ui._launch(pad);await settle()
 		check(ui.game.state.rocket.launched==1 and ui.find_child("LaunchSequence",true,false)!=null,"launch commits completion and opens its transient ending")
 		check(ui.library.load_world(id).state.rocket.launched==1,"successful launch is durable before the ending opens")
+		var sequence=ui.find_child("LaunchSequence",true,false);sequence.set_process(false)
+		var elapsed_before=sequence.elapsed
+		await create_timer(.25).timeout;sequence._process(0)
+		check(sequence.elapsed-elapsed_before>=.2,"ending duration follows elapsed time when rendering pauses")
 	else:check(false,"launch has a dedicated ending action")
 	ui.queue_free();await settle()
 	print("FACTORY_UX_UI: %d checks, %d failures"%[checks,failures]);quit(1 if failures else 0)

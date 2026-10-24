@@ -208,7 +208,10 @@ func _box(color:Color,radius=10) -> StyleBoxFlat:
 	box.shadow_color=Color("344a3b32");box.shadow_size=int(3*scale_ui);box.shadow_offset=Vector2(0,4)*scale_ui
 	return box
 func _button(parent,text,action:Callable) -> Button:
-	var b=Button.new();b.text=text;b.custom_minimum_size=Vector2(48,48)*scale_ui;b.pressed.connect(func():action.call_deferred());parent.add_child(b);return b
+	var b=Button.new();b.text=text;b.custom_minimum_size=Vector2(48,48)*scale_ui;b.pressed.connect(func():
+		if body!=null and body.is_ancestor_of(b) and not panel_ready:return
+		action.call_deferred())
+	parent.add_child(b);return b
 func _icon_button(parent,icon,action:Callable) -> Button:
 	var b=_button(parent,"",action);b.set_meta("icon",icon)
 	var picture=TextureRect.new();picture.texture=Art.texture("icon_"+icon);picture.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
@@ -310,7 +313,7 @@ func _layout():
 	sheet.add_theme_stylebox_override("panel",_box(Color("fff5d9"),12))
 	handle.custom_minimum_size=Vector2(48,48)*u;handle.position=Vector2.ZERO;handle.size=Vector2(width,48*u)
 	for state in ["normal","hover","pressed","focus"]:handle.add_theme_stylebox_override(state,StyleBoxEmpty.new())
-	scroll.position=Vector2(14,52)*u;scroll.size=Vector2(width-28*u,maxf(0,height-60*u));scroll.visible=sheet_fraction>0 and panel_ready
+	scroll.position=Vector2(14,52)*u;scroll.size=Vector2(width-28*u,maxf(0,height-60*u));scroll.visible=sheet_fraction>0;scroll.modulate.a=1.0 if panel_ready else 0.0
 	body.add_theme_constant_override("separation",int(6*u))
 	map_buttons.add_theme_constant_override("separation",int(8*u))
 	for b in map_buttons.get_children():b.custom_minimum_size=Vector2(48,48)*u
@@ -446,7 +449,7 @@ func _signature() -> String:
 	return value
 func _rebuild():
 	if body==null:return
-	panel_ready=false;scroll.hide()
+	panel_ready=false;scroll.modulate.a=0.0
 	map.opportunity={}
 	var previous=scroll.scroll_vertical
 	bindings=[]
